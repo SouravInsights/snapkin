@@ -122,7 +122,9 @@ export function patternCss(
   // Ink harmonized with the preset: keep the base color dominant so the
   // pattern reads as part of the artwork, never as an overlaid stencil
   const light = luminance(base) > 0.55
-  const ink = light ? mixHex(base, "#171320", 0.5) : mixHex(base, "#FFFFFF", 0.55)
+  const ink = light
+    ? mixHex(base, "#171320", 0.5)
+    : mixHex(base, "#FFFFFF", 0.55)
 
   const u = (n: number) =>
     `calc(min(100cqw, 100cqh) / 420 * ${Math.round(n * 1000) / 1000})`

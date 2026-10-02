@@ -132,7 +132,10 @@ export function Snapkin() {
         text: tweet.text,
         authorName: tweet.authorName,
         authorHandle: tweet.authorHandle,
+        verified: tweet.verified,
         dateLabel: tweet.dateLabel || state.dateLabel,
+        avatarUrl: tweet.avatarUrl,
+        stats: tweet.stats.length > 0 ? tweet.stats : state.stats,
       })
       toast("ok", "Post imported — make it yours")
     } catch (error) {

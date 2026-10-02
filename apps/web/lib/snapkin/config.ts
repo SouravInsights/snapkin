@@ -1,5 +1,7 @@
 /* Snapkin state model, presets, and defaults. Pure data — no React. */
 
+import { formatDateLabel } from "./format"
+
 export const TABS = ["post", "tweet", "canvas", "pattern"] as const
 export type TabId = (typeof TABS)[number]
 
@@ -122,6 +124,8 @@ export interface SnapState {
   authorHandle: string
   verified: boolean
   dateLabel: string
+  avatarUrl: string | null
+  stats: [string, string][]
   /* canvas */
   size: CanvasSizeId
   bg: BgKind
@@ -146,16 +150,7 @@ export interface SnapState {
 }
 
 export function defaultDateLabel(now = new Date()): string {
-  const time = now.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  })
-  const date = now.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
-  return `${time} · ${date}`
+  return formatDateLabel(now)
 }
 
 export const DEFAULT_STATE: SnapState = {
@@ -165,6 +160,12 @@ export const DEFAULT_STATE: SnapState = {
   authorHandle: "noravale",
   verified: true,
   dateLabel: "", // hydrated on mount — SSR must not bake in a timestamp
+  avatarUrl: null,
+  stats: [
+    ["Reposts", "1.2K"],
+    ["Likes", "8.4K"],
+    ["Bookmarks", "96"],
+  ],
   size: "post",
   bg: "gradient",
   preset: 0,

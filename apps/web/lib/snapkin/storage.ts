@@ -3,7 +3,7 @@
 
 import { DEFAULT_STATE, type SnapState } from "./config"
 
-const STORAGE_KEY = "snapkin:v2"
+const STORAGE_KEY = "snapkin:v3"
 
 /** Keys that are session- or render-time only */
 const EPHEMERAL: (keyof SnapState)[] = ["image", "dateLabel"]
@@ -21,7 +21,11 @@ export function loadState(): SnapState {
     const merged = { ...base }
     for (const key of Object.keys(base) as (keyof SnapState)[]) {
       const value = (stored as Record<string, unknown>)[key]
-      if (value !== undefined && typeof value === typeof base[key]) {
+      if (value === undefined) continue
+      // nullable defaults accept any same-type-or-null value
+      if (
+        value === null ? base[key] === null : typeof value === typeof base[key]
+      ) {
         ;(merged as Record<string, unknown>)[key] = value
       }
     }

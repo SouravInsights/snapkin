@@ -136,7 +136,11 @@ export function PostPanel({
             autoCorrect="off"
             spellCheck={false}
             onChange={(e) =>
-              update({ authorHandle: e.target.value.replace(/^@+/, "") })
+              update({
+                authorHandle: e.target.value.replace(/^@+/, ""),
+                // a changed identity must not keep someone else's photo
+                avatarUrl: null,
+              })
             }
             className={fieldInput}
           />

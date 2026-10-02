@@ -50,7 +50,7 @@ export function Stage({
         className="[container-type:inline-size] relative aspect-[var(--ar)] w-[min(100cqw,calc(100cqh*var(--ar)))] animate-in overflow-hidden rounded-2xl shadow-xl ring-1 ring-border duration-300 fade-in slide-in-from-bottom-2 motion-reduce:animate-none"
       >
         <div
-          className="absolute inset-0 isolate grid place-items-center overflow-hidden [--u:calc(100cqw/540)] [container-type:size]"
+          className="[container-type:size] absolute inset-0 isolate grid place-items-center overflow-hidden [--u:calc(100cqw/540)]"
           style={{ fontFamily: SYSTEM_FONT_STACK }}
         >
           <div
@@ -77,6 +77,8 @@ export function Stage({
               authorHandle={state.authorHandle}
               verified={state.verified}
               dateLabel={state.dateLabel}
+              avatarUrl={state.avatarUrl}
+              stats={state.stats}
             />
           </div>
         </div>
