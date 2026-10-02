@@ -26,25 +26,28 @@ export const BG_KINDS = [
 ] as const
 export type BgKind = (typeof BG_KINDS)[number][0]
 
-/** Background palettes: [name, base, mid, pop] */
+/** Background palettes: [name, base, mid, pop] — one family, consistent
+ * lightness/chroma discipline; `mid` carries the hue, `pop` is the highlight
+ * used by mesh/wave. */
 export const BG_PRESETS = [
-  ["Paper", "#F4EFE6", "#E7DCC8", "#FBD8B4"],
-  ["Blush", "#FFE7EC", "#FFC9D3", "#FFF3DC"],
-  ["Tide", "#DDEFF0", "#A9D6DA", "#DBF1E4"],
-  ["Meadow", "#E4F3DB", "#B9E0B9", "#F6F6CE"],
-  ["Sunset", "#FFE2D4", "#FFB494", "#FFF1C8"],
-  ["Grape", "#EEE5FA", "#CDBAF0", "#FBDBED"],
-  ["Citrus", "#FFF3C6", "#F8DF77", "#E2F0CB"],
-  ["Storm", "#2E323B", "#1A1D24", "#5B6478"],
+  ["Porcelain", "#F6F1EA", "#E8DAC7", "#F8D9AE"],
+  ["Rose", "#FBE9EC", "#F4C2CE", "#FBE3C8"],
+  ["Fog", "#E4ECF0", "#BED5E0", "#D8E8EC"],
+  ["Sage", "#E6EFDC", "#C2DDB8", "#F0F2CD"],
+  ["Apricot", "#FBE4D4", "#F5B994", "#FCECC6"],
+  ["Lavender", "#EBE4F6", "#CABAE9", "#F6DAEA"],
+  ["Honey", "#F7F0C9", "#ECD987", "#DEEAC9"],
+  ["Slate", "#262A33", "#14171D", "#4B5568"],
 ] as const
 
 export const PATTERNS = [
   ["none", "None"],
   ["dots", "Dots"],
   ["grid", "Grid"],
-  ["waves", "Waves"],
   ["diagonal", "Diagonal"],
+  ["waves", "Waves"],
   ["cross", "Cross"],
+  ["rings", "Rings"],
 ] as const
 export type PatternId = (typeof PATTERNS)[number][0]
 
@@ -103,9 +106,8 @@ export const EXAMPLE_TWEETS = [
 
 /** Sliders: [label, min, max, suffix] */
 export const SLIDERS = {
-  fontSize: ["Font size", 12, 40, ""],
-  scale: ["Tweet size", 60, 140, "%"],
-  width: ["Tweet width", 40, 100, "%"],
+  fontSize: ["Text size", 12, 40, ""],
+  width: ["Card width", 40, 100, "%"],
   radius: ["Roundness", 0, 48, ""],
   shadow: ["Shadow", 0, 100, ""],
   angle: ["Angle", 0, 360, "°"],
@@ -134,7 +136,6 @@ export interface SnapState {
   image: string | null /* object URL — memory only, never persisted */
   /* tweet appearance */
   fontSize: number
-  scale: number
   width: number
   radius: number
   shadow: number
@@ -172,7 +173,6 @@ export const DEFAULT_STATE: SnapState = {
   angle: 135,
   image: null,
   fontSize: 22,
-  scale: 100,
   width: 84,
   radius: 26,
   shadow: 42,
@@ -181,7 +181,7 @@ export const DEFAULT_STATE: SnapState = {
   pattern: "dots",
   intensity: 40,
   rotation: 0,
-  opacity: 32,
+  opacity: 36,
   blur: 0,
   blend: "normal",
 }

@@ -118,13 +118,14 @@ export function patternCss(
 ): CSSProperties | null {
   if (pattern === "none") return null
 
-  const [, base] = presetAt(presetIndex)
-  // Ink harmonized with the preset: keep the base color dominant so the
-  // pattern reads as part of the artwork, never as an overlaid stencil
+  const [, base, mid] = presetAt(presetIndex)
+  // Ink carries the palette's own hue: the mid tone, pulled toward a deep
+  // plum (light backgrounds) or toward white (dark ones) until it reads
+  // cleanly. Never a foreign neutral dropped over the artwork.
   const light = luminance(base) > 0.55
   const ink = light
-    ? mixHex(base, "#171320", 0.5)
-    : mixHex(base, "#FFFFFF", 0.55)
+    ? mixHex(mid, "#171320", 0.42)
+    : mixHex(mid, "#FFFFFF", 0.42)
 
   const u = (n: number) =>
     `calc(min(100cqw, 100cqh) / 420 * ${Math.round(n * 1000) / 1000})`
@@ -153,9 +154,13 @@ export function patternCss(
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 8.6v6.8M8.6 12h6.8' fill='none' stroke='${ink}' stroke-width='1.6' stroke-linecap='round'/></svg>`
     backgroundImage = svgUrl(svg)
     backgroundSize = `${u(cell * 0.72)} ${u(cell * 0.72)}`
+  } else if (pattern === "rings") {
+    // Concentric rings radiating from just above center — launch-graphic energy
+    backgroundImage = `repeating-radial-gradient(circle at 50% 42%, ${ink} 0 ${u(1.1)}, transparent 0 ${u(cell)})`
+    backgroundSize = "100% 100%"
   } else {
     // waves — long smooth swells, not squiggles
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 36'><path d='M0 18C20 6 40 6 60 18S100 30 120 18' fill='none' stroke='${ink}' stroke-width='1.4'/></svg>`
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 36'><path d='M0 18C20 6 40 6 60 18S100 30 120 18' fill='none' stroke='${ink}' stroke-width='1.6'/></svg>`
     backgroundImage = svgUrl(svg)
     backgroundSize = `${u(cell * 1.6)} ${u(cell * 0.48)}`
   }

@@ -158,7 +158,7 @@ export function Sheet({
                 onTab(id)
                 setPeek(false)
               }}
-              className="flex flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors duration-150 aria-selected:text-foreground"
+              className="flex touch-manipulation flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors duration-150 aria-selected:text-foreground"
             >
               <Icon
                 size={20}

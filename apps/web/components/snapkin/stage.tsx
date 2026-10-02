@@ -1,10 +1,55 @@
-import type { CSSProperties, Ref } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Ref,
+} from "react"
 import { CANVAS_SIZES, type SnapState } from "@/lib/snapkin/config"
 import { backgroundCss, cardShadowCss, patternCss } from "@/lib/snapkin/derive"
 import { TweetCard } from "./tweet-card"
 
 export const SYSTEM_FONT_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect
+
+/**
+ * The card never clips: measure its natural (unscaled) box against the
+ * canvas and shrink it into the safe area when content grows. Purely
+ * transform-based, so no layout loops and exports match the preview.
+ */
+function useAutoFit() {
+  const [fit, setFit] = useState(1)
+  const innerRef = useRef<HTMLDivElement>(null)
+
+  useIsomorphicLayoutEffect(() => {
+    const inner = innerRef.current
+    if (!inner) return
+    const card = inner.querySelector<HTMLElement>("[data-slot='tweet-card']")
+    if (!card) return
+
+    const compute = () => {
+      const availW = inner.clientWidth * 0.92
+      const availH = inner.clientHeight * 0.86
+      const w = card.offsetWidth
+      const h = card.offsetHeight
+      if (!w || !h) return
+      const next = Math.max(0.45, Math.min(1, availW / w, availH / h))
+      setFit((prev) => (Math.abs(prev - next) > 0.005 ? next : prev))
+    }
+
+    compute()
+    const ro = new ResizeObserver(compute)
+    ro.observe(inner)
+    ro.observe(card)
+    return () => ro.disconnect()
+  }, [])
+
+  return { fit, innerRef }
+}
 
 /**
  * The live canvas. Every measurement inside derives from the `--u`
@@ -27,9 +72,11 @@ export function Stage({
     presetIndex: state.preset,
   })
 
+  const { fit, innerRef } = useAutoFit()
+
   const cardVars = {
     "--fs": state.fontSize,
-    "--sc": state.scale / 100,
+    "--sc": fit,
     "--w": state.width,
     "--r": state.radius,
     "--cbg": state.cardBg,
@@ -50,7 +97,8 @@ export function Stage({
         className="[container-type:inline-size] relative aspect-[var(--ar)] w-[min(100cqw,calc(100cqh*var(--ar)))] animate-in overflow-hidden rounded-2xl shadow-xl ring-1 ring-border duration-300 fade-in slide-in-from-bottom-2 motion-reduce:animate-none"
       >
         <div
-          className="[container-type:size] absolute inset-0 isolate grid place-items-center overflow-hidden [--u:calc(100cqw/540)]"
+          ref={innerRef}
+          className="[container-type:size] absolute inset-0 isolate grid place-content-center justify-items-center overflow-hidden [--u:calc(100cqw/540)]"
           style={{ fontFamily: SYSTEM_FONT_STACK }}
         >
           <div

@@ -19,7 +19,13 @@ import {
 } from "@/lib/snapkin/config"
 import { backgroundCss, presetAt } from "@/lib/snapkin/derive"
 import { cn } from "@workspace/ui/lib/utils"
-import { ChipRow, GroupLabel, SliderRow, SwatchRow } from "./fields"
+import {
+  ChipRow,
+  GroupLabel,
+  SliderRow,
+  SwatchRow,
+  useFinePointer,
+} from "./fields"
 
 export interface PanelProps {
   state: SnapState
@@ -35,7 +41,7 @@ const fieldInput =
   "min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
 
 const ghostButton = cn(
-  "h-8 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-[background-color,transform,color] duration-150",
+  "h-8 touch-manipulation rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-[background-color,transform,color] duration-150",
   "hover:bg-muted hover:text-foreground active:scale-95"
 )
 
@@ -195,6 +201,7 @@ function currentTheme(state: SnapState): TweetThemeId | undefined {
 }
 
 export function TweetPanel({ state, update }: PanelProps) {
+  const finePointer = useFinePointer()
   return (
     <div
       data-slot="panel"
@@ -216,17 +223,15 @@ export function TweetPanel({ state, update }: PanelProps) {
         />
       </div>
 
-      {(["fontSize", "scale", "width", "radius", "shadow"] as const).map(
-        (key) => (
-          <SliderRow
-            key={key}
-            id={key}
-            value={state[key]}
-            defaultValue={DEFAULT_STATE[key]}
-            onChange={(value) => update({ [key]: value })}
-          />
-        )
-      )}
+      {(["fontSize", "width", "radius", "shadow"] as const).map((key) => (
+        <SliderRow
+          key={key}
+          id={key}
+          value={state[key]}
+          defaultValue={DEFAULT_STATE[key]}
+          onChange={(value) => update({ [key]: value })}
+        />
+      ))}
 
       <GroupLabel>Background</GroupLabel>
       <SwatchRow
@@ -244,9 +249,11 @@ export function TweetPanel({ state, update }: PanelProps) {
         onSelect={(cardText) => update({ cardText })}
       />
 
-      <p className="mt-4 text-xs leading-4 text-pretty text-muted-foreground">
-        Double-click any slider to reset it.
-      </p>
+      {finePointer && (
+        <p className="mt-4 text-xs leading-4 text-pretty text-muted-foreground">
+          Double-click any slider to reset it.
+        </p>
+      )}
     </div>
   )
 }
@@ -286,7 +293,7 @@ export function CanvasPanel({
               type="button"
               aria-pressed={active}
               onClick={() => update({ size: id })}
-              className="relative z-10 flex flex-col items-center justify-center gap-1.5 rounded-md text-[11px] font-medium text-muted-foreground transition-colors duration-150 aria-pressed:text-foreground"
+              className="relative z-10 flex touch-manipulation flex-col items-center justify-center gap-1.5 rounded-md text-[11px] font-medium text-muted-foreground transition-colors duration-150 aria-pressed:text-foreground"
             >
               <span
                 className="rounded-[3px] border-[1.5px] border-current"
@@ -321,7 +328,7 @@ export function CanvasPanel({
                 update({ bg: kind })
               }}
               className={cn(
-                "group flex flex-col items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors",
+                "group flex touch-manipulation flex-col items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors",
                 "aria-pressed:text-foreground"
               )}
             >

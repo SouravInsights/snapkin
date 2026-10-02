@@ -26,12 +26,58 @@ interface SyndicationTweet {
   created_at?: string
   favorite_count?: number
   conversation_count?: number
+  /** present (and `text` truncated ~278 chars) on long-form note tweets */
+  note_tweet?: { id?: string }
+  photos?: unknown[]
   user?: {
     name?: string
     screen_name?: string
     verified?: boolean
     is_blue_verified?: boolean
     profile_image_url_https?: string
+  }
+}
+
+interface VxTweet {
+  text?: string
+  likes?: number
+  replies?: number
+  retweets?: number
+}
+
+/**
+ * Syndication truncates long-form posts mid-sentence with no expansion
+ * field. When the `note_tweet` marker is present, expand the text via the
+ * public vxtwitter embed API — accepted only if it clearly continues the
+ * truncated syndication text (prefix-continuity check).
+ */
+async function expandNoteText(
+  handle: string,
+  id: string,
+  truncated: string,
+  hadMediaLink: boolean
+): Promise<{ text: string; stats: [string, string][] } | null> {
+  try {
+    const res = await fetch(
+      `https://api.vxtwitter.com/${encodeURIComponent(handle)}/status/${id}`,
+      { next: { revalidate: DAY } }
+    )
+    if (!res.ok) return null
+    const d: VxTweet = await res.json()
+    let text = (d.text ?? "").trim()
+    // media-tweet texts end with a bare t.co link — the card doesn't render it
+    if (hadMediaLink) text = text.replace(/\s*https?:\/\/t\.co\/\w+\s*$/, "")
+    const anchor = truncated.replace(/[\s…]+$/u, "").slice(0, 60)
+    if (!text || text.length <= truncated.length || !text.startsWith(anchor)) {
+      return null
+    }
+    const stats: [string, string][] = []
+    if (typeof d.replies === "number") stats.push(["Replies", formatCount(d.replies)])
+    if (typeof d.retweets === "number") stats.push(["Reposts", formatCount(d.retweets)])
+    if (typeof d.likes === "number") stats.push(["Likes", formatCount(d.likes)])
+    return { text, stats }
+  } catch {
+    return null
   }
 }
 
@@ -126,7 +172,21 @@ export async function GET(request: Request) {
     if (res.ok) {
       const data: SyndicationTweet = await res.json()
       const tweet = data && fromSyndication(data)
-      if (tweet) return Response.json({ ok: true, tweet })
+      if (tweet) {
+        if (data.note_tweet) {
+          const expanded = await expandNoteText(
+            parsed.handle,
+            parsed.id,
+            tweet.text,
+            Boolean(data.photos?.length)
+          )
+          if (expanded) {
+            tweet.text = expanded.text
+            if (expanded.stats.length > 0) tweet.stats = expanded.stats
+          }
+        }
+        return Response.json({ ok: true, tweet })
+      }
     }
   } catch {
     /* fall through to oEmbed */

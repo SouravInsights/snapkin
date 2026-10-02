@@ -48,7 +48,7 @@ export default function RootLayout({
         geistMono.variable
       )}
     >
-      <body>
+      <body className="overflow-hidden overscroll-none">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

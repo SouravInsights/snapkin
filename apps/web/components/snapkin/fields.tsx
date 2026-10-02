@@ -1,8 +1,21 @@
 "use client"
 
-import type { CSSProperties, ReactNode } from "react"
+import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react"
 import { SLIDERS, type SliderKey } from "@/lib/snapkin/config"
 import { cn } from "@workspace/ui/lib/utils"
+
+/** True on devices with a precise pointer (mouse/trackpad). SSR-safe. */
+export function useFinePointer(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia("(hover: hover) and (pointer: fine)")
+      mq.addEventListener("change", cb)
+      return () => mq.removeEventListener("change", cb)
+    },
+    () => window.matchMedia("(hover: hover) and (pointer: fine)").matches,
+    () => false
+  )
+}
 
 export function GroupLabel({
   children,
@@ -35,12 +48,17 @@ export function SliderRow({
   onChange: (value: number) => void
 }) {
   const [label, min, max, suffix] = SLIDERS[id]
+  // Double-tap fires dblclick on touch screens too — scrolling past sliders
+  // would silently reset them. The gesture stays a desktop affordance.
+  const finePointer = useFinePointer()
   return (
     <div
       data-slot="slider-row"
       className="grid min-h-[42px] grid-cols-[88px_1fr_46px] items-center gap-3"
-      onDoubleClick={() => onChange(defaultValue)}
-      title={`Double-click to reset ${label.toLowerCase()}`}
+      onDoubleClick={() => finePointer && onChange(defaultValue)}
+      title={
+        finePointer ? `Double-click to reset ${label.toLowerCase()}` : undefined
+      }
     >
       <span
         id={`${id}-label`}
@@ -103,7 +121,7 @@ export function ChipRow<T extends string>({
             aria-pressed={active}
             onClick={() => onSelect(value)}
             className={cn(
-              "min-h-8 shrink-0 rounded-full bg-card px-3 text-[13px] font-medium text-muted-foreground shadow-[inset_0_0_0_1px_var(--input)]",
+              "min-h-8 shrink-0 touch-manipulation rounded-full bg-card px-3 text-[13px] font-medium text-muted-foreground shadow-[inset_0_0_0_1px_var(--input)]",
               "transition-[box-shadow,background-color,color,transform] duration-150 active:scale-95",
               "aria-pressed:bg-secondary aria-pressed:text-foreground aria-pressed:shadow-[inset_0_0_0_1.5px_var(--foreground)]"
             )}
@@ -147,7 +165,7 @@ export function SwatchRow({
             style={{ background: preview ? preview(color) : color }}
             onClick={() => onSelect(color)}
             className={cn(
-              "size-8 shrink-0 rounded-full shadow-[inset_0_0_0_1px_var(--input)]",
+              "size-8 shrink-0 touch-manipulation rounded-full shadow-[inset_0_0_0_1px_var(--input)]",
               "transition-[box-shadow,transform] duration-150 active:scale-90",
               "aria-pressed:shadow-[inset_0_0_0_1px_var(--input),0_0_0_2px_var(--card),0_0_0_4px_var(--foreground)]"
             )}
