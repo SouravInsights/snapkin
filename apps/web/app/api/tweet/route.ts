@@ -1,24 +1,56 @@
 /* GET /api/tweet?url=<tweet url>
  *
- * Imports tweet metadata server-side (the public syndication endpoint is
- * CORS-restricted to platform.twitter.com, so browsers can't call it
- * directly). Primary: syndication JSON (text, author, avatar, verified,
- * timestamp, real like/reply counts). Fallback: the oEmbed endpoint, which
- * carries text + author + date only.
+ * Imports tweet metadata server-side (the upstream endpoints are
+ * CORS-restricted to their own origins, so browsers can't call them
+ * directly).
+ *
+ * Sources, in order:
+ *  1. fxtwitter — the only public source that returns *current* engagement
+ *     (replies/reposts/likes/bookmarks/views) plus the author, timestamp and
+ *     avatar. This is the single source of truth for every number on the card.
+ *  2. syndication JSON — text, author, timestamp and like/reply counts. Used
+ *     when fxtwitter is unavailable, and to fill a long-form post's full text
+ *     when fxtwitter truncates it.
+ *  3. vxtwitter — *text only*. Its engagement counters are a stale snapshot
+ *     and must never reach the card.
+ *  4. oEmbed — text + author + date only, no counts.
  */
 
 import { formatCount, formatDateLabel } from "@/lib/snapkin/format"
 import { parseTweetUrl, type ImportedTweet } from "@/lib/snapkin/tweet-data"
 
-const DAY = 60 * 60 * 24
-
 /* The syndication endpoint only fulfills requests that carry a `token`
  * parameter (any well-formed value). This is the token shape react-tweet
  * popularized. */
 const syndicationToken = (id: string) =>
-  ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "")
+  ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\\.)/g, "")
 
 const ORIGIN = (u: string) => `/api/avatar?u=${encodeURIComponent(u)}`
+
+/* Engagement is live data: it keeps climbing after a post goes out, so nothing
+ * in this route may be cached across requests. */
+const NO_CACHE = { cache: "no-store" } as const
+
+/* `text` from these sources is capped around 280 chars, which is how a
+ * long-form post gets mistaken for a short one. */
+const TEXT_CAP = 270
+
+interface FxTweet {
+  text?: string
+  is_note_tweet?: boolean
+  created_at?: string
+  replies?: number
+  retweets?: number
+  likes?: number
+  bookmarks?: number
+  views?: number
+  author?: {
+    name?: string
+    screen_name?: string
+    avatar_url?: string
+    verification?: { verified?: boolean; type?: string }
+  }
+}
 
 interface SyndicationTweet {
   text?: string
@@ -38,49 +70,68 @@ interface SyndicationTweet {
   }
 }
 
-interface VxTweet {
-  text?: string
-  likes?: number
-  replies?: number
-  retweets?: number
+/* Metric order matches the card's existing layout: the sources we already had
+ * come first, then the fields only fxtwitter exposes. */
+type Stats = [string, string][]
+
+/** The live counts, in card order. Reposts/Likes always render (as 0 when the
+ * upstream omits them) so an imported card keeps the same shape every time. */
+function liveStats(t: FxTweet): Stats {
+  const stats: Stats = []
+  if (typeof t.replies === "number") {
+    stats.push(["Replies", formatCount(t.replies)])
+  }
+  stats.push(["Reposts", formatCount(t.retweets ?? 0)])
+  stats.push(["Likes", formatCount(t.likes ?? 0)])
+  if (typeof t.bookmarks === "number") {
+    stats.push(["Bookmarks", formatCount(t.bookmarks)])
+  }
+  /* views are public and always present on fxtwitter; hidden ones read 0 */
+  if (typeof t.views === "number") {
+    stats.push(["Views", formatCount(t.views)])
+  }
+  return stats
 }
 
-/**
- * Syndication truncates long-form posts mid-sentence with no expansion
- * field. When the `note_tweet` marker is present, expand the text via the
- * public vxtwitter embed API — accepted only if it clearly continues the
- * truncated syndication text (prefix-continuity check).
- */
-async function expandNoteText(
+const asDate = (s?: string) => {
+  const d = s ? new Date(s) : new Date(NaN)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** fxtwitter: the primary source — live counts, author, timestamp, avatar. */
+async function fromFxTwitter(
   handle: string,
-  id: string,
-  truncated: string,
-  hadMediaLink: boolean
-): Promise<{ text: string; stats: [string, string][] } | null> {
-  try {
-    const res = await fetch(
-      `https://api.vxtwitter.com/${encodeURIComponent(handle)}/status/${id}`,
-      { next: { revalidate: DAY } }
-    )
-    if (!res.ok) return null
-    const d: VxTweet = await res.json()
-    let text = (d.text ?? "").trim()
-    // media-tweet texts end with a bare t.co link — the card doesn't render it
-    if (hadMediaLink) text = text.replace(/\s*https?:\/\/t\.co\/\w+\s*$/, "")
-    const anchor = truncated.replace(/[\s…]+$/u, "").slice(0, 60)
-    if (!text || text.length <= truncated.length || !text.startsWith(anchor)) {
-      return null
-    }
-    const stats: [string, string][] = []
-    if (typeof d.replies === "number") stats.push(["Replies", formatCount(d.replies)])
-    if (typeof d.retweets === "number") stats.push(["Reposts", formatCount(d.retweets)])
-    if (typeof d.likes === "number") stats.push(["Likes", formatCount(d.likes)])
-    return { text, stats }
-  } catch {
-    return null
+  id: string
+): Promise<{ tweet: ImportedTweet; fx: FxTweet } | null> {
+  const res = await fetch(
+    `https://api.fxtwitter.com/${encodeURIComponent(handle)}/status/${id}`,
+    NO_CACHE
+  )
+  if (!res.ok) return null
+  const body: { tweet?: FxTweet } | null = await res.json().catch(() => null)
+  const t = body?.tweet
+  if (!t || !t.text?.trim() || !t.author?.screen_name) return null
+
+  const created = asDate(t.created_at)
+  const avatar = t.author.avatar_url?.replace(
+    /_(normal|200x200|400x400)\\./,
+    "."
+  )
+  return {
+    fx: t,
+    tweet: {
+      text: t.text.trim(),
+      authorName: t.author.name ?? `@${t.author.screen_name}`,
+      authorHandle: t.author.screen_name,
+      verified: Boolean(t.author.verification?.verified),
+      dateLabel: created ? formatDateLabel(created) : "",
+      avatarUrl: avatar ? ORIGIN(avatar) : null,
+      stats: liveStats(t),
+    },
   }
 }
 
+/** syndication: text + author + likes/replies, no reposts/bookmarks/views. */
 function fromSyndication(t: SyndicationTweet): ImportedTweet | null {
   const u = t.user
   const range = t.display_text_range
@@ -89,14 +140,7 @@ function fromSyndication(t: SyndicationTweet): ImportedTweet | null {
     .trim()
   if (!text || !u?.screen_name) return null
 
-  const stats: [string, string][] = []
-  if (typeof t.conversation_count === "number") {
-    stats.push(["Replies", formatCount(t.conversation_count)])
-  }
-  if (typeof t.favorite_count === "number") {
-    stats.push(["Likes", formatCount(t.favorite_count)])
-  }
-
+  const created = asDate(t.created_at)
   const avatar = u.profile_image_url_https?.replace("_normal", "")
 
   return {
@@ -104,9 +148,9 @@ function fromSyndication(t: SyndicationTweet): ImportedTweet | null {
     authorName: u.name ?? `@${u.screen_name}`,
     authorHandle: u.screen_name,
     verified: Boolean(u.verified || u.is_blue_verified),
-    dateLabel: t.created_at ? formatDateLabel(new Date(t.created_at)) : "",
+    dateLabel: created ? formatDateLabel(created) : "",
     avatarUrl: avatar ? ORIGIN(avatar) : null,
-    stats,
+    stats: [], // counts are added by the caller from the same response
   }
 }
 
@@ -154,6 +198,69 @@ function fromOembedHtml(
   }
 }
 
+/** vxtwitter text used only when a long-form post comes back truncated with no
+ * other way to expand it. Its counts are deliberately ignored. */
+async function fetchLongText(
+  handle: string,
+  id: string,
+  truncated: string,
+  hadMediaLink: boolean
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://api.vxtwitter.com/${encodeURIComponent(handle)}/status/${id}`,
+      NO_CACHE
+    )
+    if (!res.ok) return null
+    const d: { text?: string } = await res.json()
+    let text = (d.text ?? "").trim()
+    // media-tweet texts end with a bare t.co link — the card doesn't render it
+    if (hadMediaLink) text = text.replace(/\s*https?:\/\/t\.co\/\w+\s*$/, "")
+    const anchor = truncated.replace(/[\s…]+$/u, "").slice(0, 60)
+    if (!text || text.length <= truncated.length || !text.startsWith(anchor)) {
+      return null
+    }
+    return text
+  } catch {
+    return null
+  }
+}
+
+/** Fetch a long-form post's full text, in order of trustworthiness. */
+async function expandText(
+  parsed: { handle: string; id: string },
+  truncated: string,
+  hadMediaLink: boolean
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://cdn.syndication.twimg.com/tweet-result?id=${encodeURIComponent(
+        parsed.id
+      )}&lang=en&token=${syndicationToken(parsed.id)}`,
+      NO_CACHE
+    )
+    if (res.ok) {
+      const data: { text?: string; display_text_range?: [number, number] } =
+        await res.json()
+      const range = data.display_text_range
+      const text = (data.text ?? "")
+        .slice(range?.[0] ?? 0, range?.[1] ?? undefined)
+        .trim()
+      if (text.length > truncated.length && text.startsWith(truncated)) {
+        return text
+      }
+    }
+  } catch {
+    /* fall through to vxtwitter */
+  }
+  return fetchLongText(parsed.handle, parsed.id, truncated, hadMediaLink)
+}
+
+/* A long-form note post has no note payload in any of these responses, so the
+ * only text available is the ~278-char preview. That's why an import can look
+ * "outdated": the card was showing the preview as if it were the whole post.
+ * expandText() recovers the full body where it can; when it can't, we keep the
+ * honest preview rather than fabricate the rest. */
 export async function GET(request: Request) {
   const url = new URL(request.url).searchParams.get("url") ?? ""
   const parsed = parseTweetUrl(url)
@@ -165,25 +272,47 @@ export async function GET(request: Request) {
   }
 
   try {
+    const primary = await fromFxTwitter(parsed.handle, parsed.id)
+    if (primary) {
+      const tweet = primary.tweet
+      const truncated =
+        Boolean(primary.fx.is_note_tweet) || tweet.text.length >= TEXT_CAP
+      if (truncated) {
+        const full = await expandText(
+          parsed,
+          tweet.text,
+          /https?:\/\/t\.co\/\w+$/.test(tweet.text)
+        )
+        if (full) tweet.text = full
+      }
+      return Response.json({ ok: true, tweet })
+    }
+  } catch {
+    /* fall through to syndication */
+  }
+
+  try {
     const res = await fetch(
       `https://cdn.syndication.twimg.com/tweet-result?id=${parsed.id}&lang=en&token=${syndicationToken(parsed.id)}`,
-      { next: { revalidate: DAY } }
+      NO_CACHE
     )
     if (res.ok) {
       const data: SyndicationTweet = await res.json()
       const tweet = data && fromSyndication(data)
       if (tweet) {
+        if (typeof data.favorite_count === "number") {
+          tweet.stats.push(["Likes", formatCount(data.favorite_count)])
+        }
+        if (typeof data.conversation_count === "number") {
+          tweet.stats.unshift(["Replies", formatCount(data.conversation_count)])
+        }
         if (data.note_tweet) {
-          const expanded = await expandNoteText(
-            parsed.handle,
-            parsed.id,
+          const full = await expandText(
+            parsed,
             tweet.text,
             Boolean(data.photos?.length)
           )
-          if (expanded) {
-            tweet.text = expanded.text
-            if (expanded.stats.length > 0) tweet.stats = expanded.stats
-          }
+          if (full) tweet.text = full
         }
         return Response.json({ ok: true, tweet })
       }
@@ -197,7 +326,7 @@ export async function GET(request: Request) {
       `https://publish.x.com/oembed?url=${encodeURIComponent(
         `https://twitter.com/${parsed.handle}/status/${parsed.id}`
       )}`,
-      { next: { revalidate: DAY } }
+      NO_CACHE
     )
     if (res.ok) {
       const data: {
