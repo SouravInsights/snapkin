@@ -61,6 +61,14 @@ export const BLEND_MODES = [
 ] as const
 export type BlendMode = (typeof BLEND_MODES)[number][0]
 
+/** How the engagement row renders. Icons match X's own metric language and
+ * keep the row on one line; labels spell each metric out. */
+export const STAT_STYLES = [
+  ["icons", "Icons"],
+  ["labels", "Labels"],
+] as const
+export type StatStyle = (typeof STAT_STYLES)[number][0]
+
 export const TWEET_THEMES = {
   light: { label: "Light", bg: "#FFFFFF", text: "#0F1419" },
   dim: { label: "Dim", bg: "#15202B", text: "#F7F9F9" },
@@ -128,6 +136,12 @@ export interface SnapState {
   dateLabel: string
   avatarUrl: string | null
   stats: [string, string][]
+  statStyle: StatStyle
+  /** handle this post replies to, without the @ */
+  replyTo: string | null
+  /** attached photo, proxied same-origin so it survives export */
+  mediaUrl: string | null
+  mediaAspect: number | null
   /* canvas */
   size: CanvasSizeId
   bg: BgKind
@@ -167,6 +181,10 @@ export const DEFAULT_STATE: SnapState = {
     ["Likes", "8.4K"],
     ["Bookmarks", "96"],
   ],
+  statStyle: "labels",
+  replyTo: null,
+  mediaUrl: null,
+  mediaAspect: null,
   size: "post",
   bg: "gradient",
   preset: 0,

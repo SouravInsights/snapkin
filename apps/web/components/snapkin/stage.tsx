@@ -127,6 +127,10 @@ export function Stage({
               dateLabel={state.dateLabel}
               avatarUrl={state.avatarUrl}
               stats={state.stats}
+              statStyle={state.statStyle}
+              replyTo={state.replyTo}
+              mediaUrl={state.mediaUrl}
+              mediaAspect={state.mediaAspect}
             />
           </div>
         </div>

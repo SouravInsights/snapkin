@@ -1,4 +1,12 @@
-import { AVATAR_GRADIENTS } from "@/lib/snapkin/config"
+import type { ComponentType } from "react"
+import {
+  BookmarkSimple,
+  ChartBar,
+  ChatCircle,
+  Heart,
+  Repeat,
+} from "@phosphor-icons/react"
+import { AVATAR_GRADIENTS, type StatStyle } from "@/lib/snapkin/config"
 import { avatarGradientIndex } from "@/lib/snapkin/derive"
 
 export interface TweetCardContent {
@@ -9,10 +17,32 @@ export interface TweetCardContent {
   dateLabel: string
   avatarUrl: string | null
   stats: [string, string][]
+  /** icons keep the row on one line; labels spell each metric out */
+  statStyle?: StatStyle
+  /** handle this post replies to, without the @ */
+  replyTo?: string | null
+  /** attached photo, already proxied same-origin */
+  mediaUrl?: string | null
+  /** natural width / height of the attached photo */
+  mediaAspect?: number | null
 }
 
 const LINKISH = /([#@]\w+|https?:\/\/[^\s]+)/g
 const IS_LINKISH = /^([#@]\w+|https?:\/\/\S+)$/
+
+/** Metric name → glyph. Icons keep the row short enough to hold one line,
+ * which is what stops a trailing label like "Views" from wrapping away from
+ * its own count. */
+const STAT_ICONS: Record<
+  string,
+  ComponentType<{ className?: string; "aria-hidden"?: boolean }>
+> = {
+  Replies: ChatCircle,
+  Reposts: Repeat,
+  Likes: Heart,
+  Bookmarks: BookmarkSimple,
+  Views: ChartBar,
+}
 
 /** Renders post text with hashtag/mention/link highlights, newline-safe. */
 function Text({ text }: { text: string }) {
@@ -66,6 +96,10 @@ export function TweetCard({
   dateLabel,
   avatarUrl,
   stats,
+  statStyle = "icons",
+  replyTo,
+  mediaUrl,
+  mediaAspect,
 }: TweetCardContent) {
   const name = authorName.trim() || "Your name"
   const handle = authorHandle.trim().replace(/^@/, "") || "handle"
@@ -104,19 +138,61 @@ export function TweetCard({
           </div>
         </div>
       </header>
+
+      {replyTo && (
+        <div className="mt-[0.7em] text-[0.74em] [color:color-mix(in_srgb,var(--ctx)_62%,transparent)]">
+          Replying to{" "}
+          <span className="text-[#1D9BF0]">@{replyTo.replace(/^@/, "")}</span>
+        </div>
+      )}
+
       <Text text={text} />
+
+      {mediaUrl && (
+        <div
+          className="mt-[0.1em] mb-[0.75em] overflow-hidden rounded-[calc(var(--r)*var(--u)*0.6)] [border:1px_solid_color-mix(in_srgb,var(--ctx)_14%,transparent)]"
+          style={{ aspectRatio: String(mediaAspect ?? 16 / 9) }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={mediaUrl} alt="" className="size-full object-cover" />
+        </div>
+      )}
+
       {dateLabel !== "" && (
-        <div className="text-[0.72em] [color:color-mix(in_srgb,var(--ctx)_62%,transparent)]">
+        <div className="text-[0.74em] [color:color-mix(in_srgb,var(--ctx)_62%,transparent)]">
           {dateLabel}
         </div>
       )}
+
       {stats.length > 0 && (
-        <div className="mt-[0.6em] flex flex-wrap gap-x-[1em] gap-y-[0.4em] pt-[0.6em] text-[0.72em] [color:color-mix(in_srgb,var(--ctx)_62%,transparent)] [border-top:1px_solid_color-mix(in_srgb,var(--ctx)_14%,transparent)]">
-          {stats.map(([label, count]) => (
-            <span key={label}>
-              <b className="font-bold [color:var(--ctx)]">{count}</b> {label}
-            </span>
-          ))}
+        /* One non-wrapping row: a count can never be split from its metric. */
+        <div className="mt-[0.65em] flex items-center gap-x-[1em] overflow-hidden pt-[0.6em] text-[0.74em] whitespace-nowrap tabular-nums [border-top:1px_solid_color-mix(in_srgb,var(--ctx)_14%,transparent)]">
+          {stats.map(([label, count]) => {
+            const MetricIcon = STAT_ICONS[label]
+            return (
+              <span
+                key={label}
+                aria-label={`${count} ${label}`}
+                title={label}
+                className="flex shrink-0 items-center gap-[0.38em]"
+              >
+                {statStyle === "icons" && MetricIcon && (
+                  <MetricIcon
+                    aria-hidden
+                    className="size-[0.95em] shrink-0"
+                  />
+                )}
+                <span className="font-medium [color:color-mix(in_srgb,var(--ctx)_78%,transparent)]">
+                  {count}
+                </span>
+                {statStyle !== "icons" && (
+                  <span className="[color:color-mix(in_srgb,var(--ctx)_62%,transparent)]">
+                    {label}
+                  </span>
+                )}
+              </span>
+            )
+          })}
         </div>
       )}
     </article>
