@@ -168,9 +168,11 @@ export const DEFAULT_STATE: SnapState = {
   dateLabel: "", // hydrated on mount — SSR must not bake in a timestamp
   avatarUrl: null,
   stats: [
+    ["Replies", "128"],
     ["Reposts", "1.2K"],
     ["Likes", "8.4K"],
     ["Bookmarks", "96"],
+    ["Views", "84.2K"],
   ],
   replyTo: null,
   mediaUrl: null,

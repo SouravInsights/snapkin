@@ -22,10 +22,15 @@ const LINKISH = /([#@]\w+|https?:\/\/[^\s]+)/g
 const IS_LINKISH = /^([#@]\w+|https?:\/\/\S+)$/
 
 /** Renders post text with hashtag/mention/link highlights, newline-safe. */
-function Text({ text }: { text: string }) {
+function Text({ text, compact }: { text: string; compact?: boolean }) {
   const parts = text.split(LINKISH)
   return (
-    <p className="wrap-anywhere mt-[0.9em] text-pretty leading-[1.44] tracking-[-0.006em] whitespace-pre-wrap">
+    <p
+      className={
+        "wrap-anywhere text-pretty leading-[1.45] tracking-[-0.006em] whitespace-pre-wrap " +
+        (compact ? "mt-[0.5em]" : "mt-[0.95em]")
+      }
+    >
       {parts.map((part, i) =>
         IS_LINKISH.test(part) ? (
           <span className="text-[#1D9BF0]" key={i}>
@@ -44,7 +49,7 @@ function VerifiedBadge() {
   // so it always shows the card color through it
   return (
     <svg
-      className="size-[1.08em] shrink-0 fill-[#1D9BF0]"
+      className="size-[1.05em] shrink-0 fill-[#1D9BF0]"
       viewBox="0 0 24 24"
       aria-label="Verified"
     >
@@ -74,13 +79,14 @@ export function TweetCard({
     AVATAR_GRADIENTS[avatarGradientIndex(name, AVATAR_GRADIENTS.length)]
   const hasText = text.trim().length > 0
   const hasMedia = Boolean(mediaUrl)
+
   const visibleStats = stats.filter(([, count]) => !isZeroCount(count))
-  // Views reads as context, not engagement — it joins the date line.
+  // Views is context, not engagement — it belongs with the timestamp.
   const views = visibleStats.find(([label]) => label.toLowerCase() === "views")
   const engagement = visibleStats.filter(
     ([label]) => label.toLowerCase() !== "views"
   )
-  const meta = [dateLabel, views ? `${views[1]} views` : ""]
+  const meta = [dateLabel, views ? `${views[1]}\u00A0views` : ""]
     .filter(Boolean)
     .join(" · ")
   const showFooter =
@@ -89,48 +95,48 @@ export function TweetCard({
   return (
     <article
       data-slot="tweet-card"
-      className="relative w-[calc(var(--w)*1%)] scale-[var(--sc)] rounded-[calc(var(--r)*var(--u))] [background-color:var(--cbg)] px-[1.22em] py-[1.1em] [font-size:calc(var(--fs)*var(--u))] leading-[1.4] [color:var(--ctx)] [box-shadow:var(--shadow)]"
+      className="relative w-[calc(var(--w)*1%)] scale-[var(--sc)] rounded-[calc(var(--r)*var(--u))] [background-color:var(--cbg)] px-[1.18em] py-[1.1em] [font-size:calc(var(--fs)*var(--u))] leading-[1.4] [color:var(--ctx)] [box-shadow:var(--shadow)]"
     >
-      <header className="flex items-start gap-[0.68em]">
+      <header className="flex items-center gap-[0.72em]">
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
             alt=""
-            className="size-[2.5em] shrink-0 rounded-full object-cover"
+            className="size-[2.5em] shrink-0 rounded-full object-cover [box-shadow:0_0_0_1px_var(--ctx-line)]"
           />
         ) : (
           <div
-            className="grid size-[2.5em] shrink-0 place-items-center rounded-full text-[0.9em] font-bold text-white"
+            className="grid size-[2.5em] shrink-0 place-items-center rounded-full text-[0.95em] font-semibold tracking-[-0.02em] text-white [box-shadow:0_0_0_1px_var(--ctx-line)]"
             style={{ background: gradient }}
             aria-hidden
           >
             {name.charAt(0).toUpperCase()}
           </div>
         )}
-        <div className="min-w-0 flex-1 pt-[0.05em]">
-          <div className="flex items-center gap-[0.28em] text-[0.86em] leading-[1.26] font-bold tracking-[-0.012em]">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-[0.26em] text-[0.88em] leading-[1.22] font-bold tracking-[-0.014em]">
             <span className="truncate">{name}</span>
             {verified && <VerifiedBadge />}
           </div>
-          <div className="mt-[0.08em] truncate text-[0.75em] leading-[1.3] [color:var(--ctx-muted)]">
+          <div className="mt-[0.1em] truncate text-[0.76em] leading-[1.32] [color:var(--ctx-muted)]">
             @{handle}
           </div>
         </div>
       </header>
 
       {replyTo && (
-        <div className="mt-[0.7em] text-[0.75em] leading-[1.35] [color:var(--ctx-muted)]">
+        <div className="mt-[0.75em] text-[0.76em] leading-[1.35] [color:var(--ctx-muted)]">
           Replying to{" "}
           <span className="text-[#1D9BF0]">@{replyTo.replace(/^@/, "")}</span>
         </div>
       )}
 
       {hasText ? (
-        <Text text={text} />
+        <Text text={text} compact={Boolean(replyTo)} />
       ) : (
         !hasMedia && (
-          <p className="mt-[0.9em] leading-[1.44] text-pretty [color:var(--ctx-faint)]">
+          <p className="mt-[0.95em] leading-[1.45] text-pretty [color:var(--ctx-faint)]">
             Your post shows up here…
           </p>
         )
@@ -139,8 +145,8 @@ export function TweetCard({
       {mediaUrl && (
         <div
           className={
-            "overflow-hidden rounded-[calc(var(--r)*var(--u)*0.55)] [border:1px_solid_var(--ctx-line)] " +
-            (hasText ? "mt-[0.2em]" : "mt-[0.85em]")
+            "overflow-hidden rounded-[calc(var(--r)*var(--u)*0.58)] [border:1px_solid_var(--ctx-line)] " +
+            (hasText ? "mt-[0.25em]" : "mt-[0.85em]")
           }
           style={{ aspectRatio: String(mediaAspect ?? 16 / 9) }}
         >
@@ -150,16 +156,16 @@ export function TweetCard({
       )}
 
       {showFooter && (
-        <footer className="mt-[1.02em] flex flex-col gap-[0.42em]">
+        <footer className="mt-[1.05em] flex flex-col gap-[0.45em]">
           {engagement.length > 0 && (
-            <div className="flex flex-wrap items-baseline gap-x-[0.95em] gap-y-[0.3em] text-[0.8em] leading-[1.15] tabular-nums">
+            <div className="flex flex-wrap items-baseline gap-x-[1.05em] gap-y-[0.32em] text-[0.77em] leading-[1.14] tabular-nums">
               {engagement.map(([label, count]) => (
                 <span
                   key={label}
                   aria-label={`${count} ${label}`}
-                  className="flex shrink-0 items-baseline gap-[0.28em] whitespace-nowrap"
+                  className="flex shrink-0 items-baseline gap-[0.24em] whitespace-nowrap"
                 >
-                  <span className="font-bold tracking-[-0.012em] [color:var(--ctx)]">
+                  <span className="font-medium tracking-[-0.004em] [color:var(--ctx)]">
                     {count}
                   </span>
                   <span className="lowercase [color:var(--ctx-muted)]">
@@ -170,7 +176,7 @@ export function TweetCard({
             </div>
           )}
           {meta && (
-            <div className="text-[0.73em] leading-[1.3] [color:var(--ctx-muted)]">
+            <div className="text-[0.72em] leading-[1.35] tracking-[0.002em] tabular-nums [color:var(--ctx-muted)]">
               {meta}
             </div>
           )}
