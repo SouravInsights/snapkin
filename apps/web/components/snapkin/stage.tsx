@@ -81,7 +81,6 @@ export function Stage({
     "--r": state.radius,
     "--cbg": state.cardBg,
     "--ctx": state.cardText,
-    "--ctx-soft": withAlpha(state.cardText, 0.78),
     "--ctx-muted": withAlpha(state.cardText, 0.6),
     "--ctx-faint": withAlpha(state.cardText, 0.42),
     "--ctx-line": withAlpha(state.cardText, 0.14),
@@ -136,7 +135,6 @@ export function Stage({
               dateLabel={state.dateLabel}
               avatarUrl={state.avatarUrl}
               stats={state.stats}
-              statStyle={state.statStyle}
               replyTo={state.replyTo}
               mediaUrl={state.mediaUrl}
               mediaAspect={state.mediaAspect}

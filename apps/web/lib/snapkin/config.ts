@@ -61,10 +61,6 @@ export const BLEND_MODES = [
 ] as const
 export type BlendMode = (typeof BLEND_MODES)[number][0]
 
-/** How the engagement row renders. Icons stay compact; labels spell each
- * metric out. */
-export type StatStyle = "icons" | "labels"
-
 export const TWEET_THEMES = {
   light: { label: "Light", bg: "#FFFFFF", text: "#0F1419" },
   dim: { label: "Dim", bg: "#15202B", text: "#F7F9F9" },
@@ -132,7 +128,6 @@ export interface SnapState {
   dateLabel: string
   avatarUrl: string | null
   stats: [string, string][]
-  statStyle: StatStyle
   /** handle this post replies to, without the @ */
   replyTo: string | null
   /** attached photo, proxied same-origin so it survives export */
@@ -177,7 +172,6 @@ export const DEFAULT_STATE: SnapState = {
     ["Likes", "8.4K"],
     ["Bookmarks", "96"],
   ],
-  statStyle: "icons",
   replyTo: null,
   mediaUrl: null,
   mediaAspect: null,

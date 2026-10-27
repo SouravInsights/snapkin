@@ -1,12 +1,4 @@
-import type { ComponentType } from "react"
-import {
-  BookmarkSimple,
-  ChartBar,
-  ChatCircle,
-  Heart,
-  Repeat,
-} from "@phosphor-icons/react"
-import { AVATAR_GRADIENTS, type StatStyle } from "@/lib/snapkin/config"
+import { AVATAR_GRADIENTS } from "@/lib/snapkin/config"
 import { avatarGradientIndex } from "@/lib/snapkin/derive"
 import { isZeroCount } from "@/lib/snapkin/format"
 
@@ -18,8 +10,6 @@ export interface TweetCardContent {
   dateLabel: string
   avatarUrl: string | null
   stats: [string, string][]
-  /** icons keep the row compact; labels spell each metric out */
-  statStyle?: StatStyle
   /** handle this post replies to, without the @ */
   replyTo?: string | null
   /** attached photo, already proxied same-origin */
@@ -30,18 +20,6 @@ export interface TweetCardContent {
 
 const LINKISH = /([#@]\w+|https?:\/\/[^\s]+)/g
 const IS_LINKISH = /^([#@]\w+|https?:\/\/\S+)$/
-
-/** Metric name → glyph. */
-const STAT_ICONS: Record<
-  string,
-  ComponentType<{ className?: string; "aria-hidden"?: boolean }>
-> = {
-  Replies: ChatCircle,
-  Reposts: Repeat,
-  Likes: Heart,
-  Bookmarks: BookmarkSimple,
-  Views: ChartBar,
-}
 
 /** Renders post text with hashtag/mention/link highlights, newline-safe. */
 function Text({ text }: { text: string }) {
@@ -86,7 +64,6 @@ export function TweetCard({
   dateLabel,
   avatarUrl,
   stats,
-  statStyle = "icons",
   replyTo,
   mediaUrl,
   mediaAspect,
@@ -98,7 +75,16 @@ export function TweetCard({
   const hasText = text.trim().length > 0
   const hasMedia = Boolean(mediaUrl)
   const visibleStats = stats.filter(([, count]) => !isZeroCount(count))
-  const showFooter = (hasText || hasMedia) && (dateLabel || visibleStats.length)
+  // Views reads as context, not engagement — it joins the date line.
+  const views = visibleStats.find(([label]) => label.toLowerCase() === "views")
+  const engagement = visibleStats.filter(
+    ([label]) => label.toLowerCase() !== "views"
+  )
+  const meta = [dateLabel, views ? `${views[1]} views` : ""]
+    .filter(Boolean)
+    .join(" · ")
+  const showFooter =
+    (hasText || hasMedia) && (Boolean(meta) || engagement.length > 0)
 
   return (
     <article
@@ -164,38 +150,28 @@ export function TweetCard({
       )}
 
       {showFooter && (
-        <footer className="mt-[1.05em] flex flex-col gap-[0.5em]">
-          {dateLabel && (
-            <div className="text-[0.73em] leading-[1.3] [color:var(--ctx-muted)]">
-              {dateLabel}
+        <footer className="mt-[1.02em] flex flex-col gap-[0.42em]">
+          {engagement.length > 0 && (
+            <div className="flex flex-wrap items-baseline gap-x-[0.95em] gap-y-[0.3em] text-[0.8em] leading-[1.15] tabular-nums">
+              {engagement.map(([label, count]) => (
+                <span
+                  key={label}
+                  aria-label={`${count} ${label}`}
+                  className="flex shrink-0 items-baseline gap-[0.28em] whitespace-nowrap"
+                >
+                  <span className="font-bold tracking-[-0.012em] [color:var(--ctx)]">
+                    {count}
+                  </span>
+                  <span className="lowercase [color:var(--ctx-muted)]">
+                    {label}
+                  </span>
+                </span>
+              ))}
             </div>
           )}
-          {visibleStats.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-[1.1em] gap-y-[0.35em] text-[0.76em] leading-none tabular-nums">
-              {visibleStats.map(([label, count]) => {
-                const MetricIcon = STAT_ICONS[label]
-                return (
-                  <span
-                    key={label}
-                    aria-label={`${count} ${label}`}
-                    title={label}
-                    className="flex shrink-0 items-center gap-[0.34em] whitespace-nowrap"
-                  >
-                    {statStyle === "icons" && MetricIcon && (
-                      <MetricIcon
-                        aria-hidden
-                        className="size-[1.05em] shrink-0 [color:var(--ctx-muted)]"
-                      />
-                    )}
-                    <span className="font-semibold tracking-[0.01em] [color:var(--ctx-soft)]">
-                      {count}
-                    </span>
-                    {statStyle !== "icons" && (
-                      <span className="[color:var(--ctx-muted)]">{label}</span>
-                    )}
-                  </span>
-                )
-              })}
+          {meta && (
+            <div className="text-[0.73em] leading-[1.3] [color:var(--ctx-muted)]">
+              {meta}
             </div>
           )}
         </footer>
