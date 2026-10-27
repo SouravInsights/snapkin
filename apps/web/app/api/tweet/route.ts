@@ -16,14 +16,14 @@
  *  4. oEmbed — text + author + date only, no counts.
  */
 
-import { formatCount, formatDateLabel } from "@/lib/snapkin/format"
+import { formatCount } from "@/lib/snapkin/format"
 import { parseTweetUrl, type ImportedTweet } from "@/lib/snapkin/tweet-data"
 
 /* The syndication endpoint only fulfills requests that carry a `token`
  * parameter (any well-formed value). This is the token shape react-tweet
  * popularized. */
 const syndicationToken = (id: string) =>
-  ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\\.)/g, "")
+  ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "")
 
 const ORIGIN = (u: string) => `/api/avatar?u=${encodeURIComponent(u)}`
 
@@ -39,6 +39,8 @@ interface FxTweet {
   text?: string
   is_note_tweet?: boolean
   created_at?: string
+  /** Unix seconds — more reliable than parsing the classic text timestamp */
+  created_timestamp?: number
   replies?: number
   retweets?: number
   likes?: number
@@ -74,22 +76,18 @@ interface SyndicationTweet {
  * come first, then the fields only fxtwitter exposes. */
 type Stats = [string, string][]
 
-/** The live counts, in card order. Reposts/Likes always render (as 0 when the
- * upstream omits them) so an imported card keeps the same shape every time. */
+/** The live counts, in card order. Zero-valued metrics are omitted: X itself
+ * hides them, and "0 Views" reads like a bug rather than a stat. */
 function liveStats(t: FxTweet): Stats {
   const stats: Stats = []
-  if (typeof t.replies === "number") {
-    stats.push(["Replies", formatCount(t.replies)])
+  const add = (label: string, n?: number) => {
+    if (typeof n === "number" && n > 0) stats.push([label, formatCount(n)])
   }
-  stats.push(["Reposts", formatCount(t.retweets ?? 0)])
-  stats.push(["Likes", formatCount(t.likes ?? 0)])
-  if (typeof t.bookmarks === "number") {
-    stats.push(["Bookmarks", formatCount(t.bookmarks)])
-  }
-  /* views are public and always present on fxtwitter; hidden ones read 0 */
-  if (typeof t.views === "number") {
-    stats.push(["Views", formatCount(t.views)])
-  }
+  add("Replies", t.replies)
+  add("Reposts", t.retweets)
+  add("Likes", t.likes)
+  add("Bookmarks", t.bookmarks)
+  add("Views", t.views)
   return stats
 }
 
@@ -97,6 +95,12 @@ const asDate = (s?: string) => {
   const d = s ? new Date(s) : new Date(NaN)
   return Number.isNaN(d.getTime()) ? null : d
 }
+
+/** Prefer fxtwitter's Unix timestamp; fall back to its text format. */
+const fxDate = (t: FxTweet) =>
+  typeof t.created_timestamp === "number"
+    ? new Date(t.created_timestamp * 1000)
+    : asDate(t.created_at)
 
 /** fxtwitter: the primary source — live counts, author, timestamp, avatar. */
 async function fromFxTwitter(
@@ -112,9 +116,9 @@ async function fromFxTwitter(
   const t = body?.tweet
   if (!t || !t.text?.trim() || !t.author?.screen_name) return null
 
-  const created = asDate(t.created_at)
+  const created = fxDate(t)
   const avatar = t.author.avatar_url?.replace(
-    /_(normal|200x200|400x400)\\./,
+    /_(normal|200x200|400x400)\./,
     "."
   )
   return {
@@ -124,7 +128,8 @@ async function fromFxTwitter(
       authorName: t.author.name ?? `@${t.author.screen_name}`,
       authorHandle: t.author.screen_name,
       verified: Boolean(t.author.verification?.verified),
-      dateLabel: created ? formatDateLabel(created) : "",
+      createdAt: created ? created.toISOString() : null,
+      dateOnly: false,
       avatarUrl: avatar ? ORIGIN(avatar) : null,
       stats: liveStats(t),
     },
@@ -148,7 +153,8 @@ function fromSyndication(t: SyndicationTweet): ImportedTweet | null {
     authorName: u.name ?? `@${u.screen_name}`,
     authorHandle: u.screen_name,
     verified: Boolean(u.verified || u.is_blue_verified),
-    dateLabel: created ? formatDateLabel(created) : "",
+    createdAt: created ? created.toISOString() : null,
+    dateOnly: false,
     avatarUrl: avatar ? ORIGIN(avatar) : null,
     stats: [], // counts are added by the caller from the same response
   }
@@ -161,6 +167,32 @@ const decodeEntities = (s: string) =>
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+
+const MONTH_NUMBER: Record<string, string> = {
+  Jan: "01",
+  Feb: "02",
+  Mar: "03",
+  Apr: "04",
+  May: "05",
+  Jun: "06",
+  Jul: "07",
+  Aug: "08",
+  Sep: "09",
+  Oct: "10",
+  Nov: "11",
+  Dec: "12",
+}
+
+/** "Mar 21, 2006" → "2006-03-21" without involving the server's timezone
+ * (which would be able to shift the calendar day). */
+function englishDateToIso(input: string): string | null {
+  const match = input.match(/^([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})$/)
+  const month = match ? MONTH_NUMBER[match[1]!.slice(0, 3)] : undefined
+  const day = match?.[2]?.padStart(2, "0")
+  const year = match?.[3]
+  if (!month || !day || !year) return null
+  return `${year}-${month}-${day}`
+}
 
 function fromOembedHtml(
   html: string,
@@ -190,9 +222,8 @@ function fromOembedHtml(
     authorName,
     authorHandle: handle,
     verified: false,
-    dateLabel: dateMatch?.[1]
-      ? formatDateLabel(new Date(dateMatch[1]), false)
-      : "",
+    createdAt: dateMatch?.[1] ? englishDateToIso(dateMatch[1]) : null,
+    dateOnly: true,
     avatarUrl: null,
     stats: [],
   }
@@ -300,10 +331,13 @@ export async function GET(request: Request) {
       const data: SyndicationTweet = await res.json()
       const tweet = data && fromSyndication(data)
       if (tweet) {
-        if (typeof data.favorite_count === "number") {
+        if (typeof data.favorite_count === "number" && data.favorite_count > 0) {
           tweet.stats.push(["Likes", formatCount(data.favorite_count)])
         }
-        if (typeof data.conversation_count === "number") {
+        if (
+          typeof data.conversation_count === "number" &&
+          data.conversation_count > 0
+        ) {
           tweet.stats.unshift(["Replies", formatCount(data.conversation_count)])
         }
         if (data.note_tweet) {

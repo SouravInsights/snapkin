@@ -1,11 +1,16 @@
 /* Client-side tweet import: delegates to /api/tweet (server-side fetch — the
  * upstream endpoints are CORS-restricted). */
 
+import { formatDateLabel } from "./format"
 import { parseTweetUrl, type ImportedTweet } from "./tweet-data"
 
 export type { ImportedTweet } from "./tweet-data"
 
-export async function importTweet(rawUrl: string): Promise<ImportedTweet> {
+/** The wire payload plus the date label, which is rendered in the viewer's own
+ * timezone (matching X) rather than the server's. */
+export type ImportedTweetView = ImportedTweet & { dateLabel: string }
+
+export async function importTweet(rawUrl: string): Promise<ImportedTweetView> {
   if (!parseTweetUrl(rawUrl)) {
     throw new Error("That doesn't look like a post link")
   }
@@ -21,5 +26,14 @@ export async function importTweet(rawUrl: string): Promise<ImportedTweet> {
       data.message ?? "Couldn't load that post — it may be private or deleted"
     )
   }
-  return data.tweet
+  const tweet = data.tweet
+  // A date-only source is parsed as UTC and formatted in UTC so the calendar
+  // day never slips a day backward/forward for the viewer.
+  const dateLabel = tweet.createdAt
+    ? formatDateLabel(new Date(tweet.createdAt), {
+        withTime: !tweet.dateOnly,
+        timeZone: tweet.dateOnly ? "UTC" : undefined,
+      })
+    : ""
+  return { ...tweet, dateLabel }
 }

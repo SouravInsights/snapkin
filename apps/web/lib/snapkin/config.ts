@@ -61,13 +61,9 @@ export const BLEND_MODES = [
 ] as const
 export type BlendMode = (typeof BLEND_MODES)[number][0]
 
-/** How the engagement row renders. Icons match X's own metric language and
- * keep the row on one line; labels spell each metric out. */
-export const STAT_STYLES = [
-  ["icons", "Icons"],
-  ["labels", "Labels"],
-] as const
-export type StatStyle = (typeof STAT_STYLES)[number][0]
+/** How the engagement row renders. Icons stay compact; labels spell each
+ * metric out. */
+export type StatStyle = "icons" | "labels"
 
 export const TWEET_THEMES = {
   light: { label: "Light", bg: "#FFFFFF", text: "#0F1419" },
@@ -181,7 +177,7 @@ export const DEFAULT_STATE: SnapState = {
     ["Likes", "8.4K"],
     ["Bookmarks", "96"],
   ],
-  statStyle: "labels",
+  statStyle: "icons",
   replyTo: null,
   mediaUrl: null,
   mediaAspect: null,

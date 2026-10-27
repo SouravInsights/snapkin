@@ -6,7 +6,10 @@ export interface ImportedTweet {
   authorName: string
   authorHandle: string
   verified: boolean
-  dateLabel: string
+  /** ISO-8601 timestamp (UTC). `dateOnly` means only the calendar day is known. */
+  createdAt: string | null
+  /** True when the source only exposed a day, not a reliable clock time. */
+  dateOnly: boolean
   avatarUrl: string | null
   stats: [string, string][]
 }

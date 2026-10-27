@@ -7,7 +7,7 @@ import {
   type Ref,
 } from "react"
 import { CANVAS_SIZES, type SnapState } from "@/lib/snapkin/config"
-import { backgroundCss, cardShadowCss, patternCss } from "@/lib/snapkin/derive"
+import { backgroundCss, cardShadowCss, patternCss, withAlpha } from "@/lib/snapkin/derive"
 import { TweetCard } from "./tweet-card"
 
 export const SYSTEM_FONT_STACK =
@@ -81,6 +81,10 @@ export function Stage({
     "--r": state.radius,
     "--cbg": state.cardBg,
     "--ctx": state.cardText,
+    "--ctx-soft": withAlpha(state.cardText, 0.78),
+    "--ctx-muted": withAlpha(state.cardText, 0.6),
+    "--ctx-faint": withAlpha(state.cardText, 0.42),
+    "--ctx-line": withAlpha(state.cardText, 0.14),
     "--shadow": cardShadowCss(state.shadow),
   } as CSSProperties
 
@@ -98,8 +102,13 @@ export function Stage({
       >
         <div
           ref={innerRef}
-          className="[container-type:size] absolute inset-0 isolate grid place-content-center justify-items-center overflow-hidden [--u:calc(100cqw/540)]"
-          style={{ fontFamily: SYSTEM_FONT_STACK }}
+          style={
+            {
+              "--u": "calc(100cqw / 540)",
+              fontFamily: SYSTEM_FONT_STACK,
+            } as CSSProperties
+          }
+          className="[container-type:size] absolute inset-0 isolate grid place-content-center justify-items-center overflow-hidden"
         >
           <div
             data-slot="bg-layer"

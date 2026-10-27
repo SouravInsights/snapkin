@@ -33,10 +33,11 @@ export function Snapkin() {
   )
   const objectUrl = useRef<string | null>(null)
 
-  /* Hydrate from localStorage + stamp the live preview date (client only) */
+  /* Hydrate from localStorage. A first visit has no timestamp, so the sample
+   * post is stamped "now"; a restored canvas keeps whatever date it had. */
   useEffect(() => {
     const stored = loadState()
-    setState({ ...stored, dateLabel: stored.dateLabel || defaultDateLabel() })
+    setState(stored ?? { ...DEFAULT_STATE, dateLabel: defaultDateLabel() })
     setHydrated(true)
   }, [])
 
@@ -133,9 +134,9 @@ export function Snapkin() {
         authorName: tweet.authorName,
         authorHandle: tweet.authorHandle,
         verified: tweet.verified,
-        dateLabel: tweet.dateLabel || state.dateLabel,
+        dateLabel: tweet.dateLabel,
         avatarUrl: tweet.avatarUrl,
-        stats: tweet.stats.length > 0 ? tweet.stats : state.stats,
+        stats: tweet.stats,
       })
       toast("ok", "Post imported — make it yours")
     } catch (error) {

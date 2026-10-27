@@ -197,3 +197,23 @@ export function avatarGradientIndex(name: string, count: number): number {
   }
   return hash % count
 }
+
+/** Hex color → rgba() at a given alpha. Used to derive muted text/line colors
+ * in JS instead of `color-mix()`, which is not reliably rasterized by the
+ * SVG-foreignObject export path on every browser. */
+export function withAlpha(color: string, alpha: number): string {
+  const hex = color.trim().replace(/^#/, "")
+  const full =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : hex
+  if (!/^[0-9a-f]{6}$/i.test(full)) return color
+  const n = parseInt(full, 16)
+  const r = (n >> 16) & 255
+  const g = (n >> 8) & 255
+  const b = n & 255
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}

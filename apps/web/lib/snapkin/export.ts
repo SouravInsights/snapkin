@@ -5,22 +5,33 @@ import { toBlob, toPng } from "html-to-image"
 import { CANVAS_SIZES, type CanvasSizeId } from "./config"
 
 /** Pin the output bitmap to the exact platform size (fractional preview
- * widths would otherwise round a pixel off). */
-const renderOptions = (size: CanvasSizeId) => ({
-  canvasWidth: CANVAS_SIZES[size].out[0],
-  canvasHeight: CANVAS_SIZES[size].out[1],
-  // canvasWidth/Height are multiplied by pixelRatio — pin it so output is exact
-  pixelRatio: 1,
-  // Strip the in-app preview frame: exports are full-bleed platform images
-  style: {
-    borderRadius: "0px",
-    boxShadow: "none",
-  },
-  // The canvas subtree only uses system fonts, so embedding webfonts is
-  // wasted bytes and a failure surface. Skip it.
-  skipFonts: true,
-  cacheBust: true,
-})
+ * widths would otherwise round a pixel off).
+ *
+ * Do NOT pass `width`/`height`: html-to-image inlines computed pixel styles
+ * before rendering, so enlarging the clone would shrink the em-based card
+ * instead of scaling it. Rasterize at preview size, then upscale the whole
+ * bitmap — the proportions stay identical. */
+const renderOptions = (size: CanvasSizeId) => {
+  const [canvasWidth, canvasHeight] = CANVAS_SIZES[size].out
+  return {
+    canvasWidth,
+    canvasHeight,
+    // canvasWidth/Height are multiplied by pixelRatio — pin it so output is exact
+    pixelRatio: 1,
+    // Strip the in-app preview frame and freeze the entrance animation:
+    // exports are full-bleed platform images, never a mid-fade frame.
+    style: {
+      borderRadius: "0px",
+      boxShadow: "none",
+      opacity: "1",
+      animation: "none",
+    },
+    // The canvas subtree only uses system fonts, so embedding webfonts is
+    // wasted bytes and a failure surface. Skip it.
+    skipFonts: true,
+    cacheBust: true,
+  }
+}
 
 export async function exportPng(
   node: HTMLElement,

@@ -8,6 +8,7 @@ import {
 } from "@phosphor-icons/react"
 import { AVATAR_GRADIENTS, type StatStyle } from "@/lib/snapkin/config"
 import { avatarGradientIndex } from "@/lib/snapkin/derive"
+import { isZeroCount } from "@/lib/snapkin/format"
 
 export interface TweetCardContent {
   text: string
@@ -17,7 +18,7 @@ export interface TweetCardContent {
   dateLabel: string
   avatarUrl: string | null
   stats: [string, string][]
-  /** icons keep the row on one line; labels spell each metric out */
+  /** icons keep the row compact; labels spell each metric out */
   statStyle?: StatStyle
   /** handle this post replies to, without the @ */
   replyTo?: string | null
@@ -30,9 +31,7 @@ export interface TweetCardContent {
 const LINKISH = /([#@]\w+|https?:\/\/[^\s]+)/g
 const IS_LINKISH = /^([#@]\w+|https?:\/\/\S+)$/
 
-/** Metric name → glyph. Icons keep the row short enough to hold one line,
- * which is what stops a trailing label like "Views" from wrapping away from
- * its own count. */
+/** Metric name → glyph. */
 const STAT_ICONS: Record<
   string,
   ComponentType<{ className?: string; "aria-hidden"?: boolean }>
@@ -46,18 +45,9 @@ const STAT_ICONS: Record<
 
 /** Renders post text with hashtag/mention/link highlights, newline-safe. */
 function Text({ text }: { text: string }) {
-  if (!text.trim()) {
-    return (
-      <p className="mt-[0.8em] mb-[0.7em] leading-[1.38]">
-        <span className="[color:color-mix(in_srgb,var(--ctx)_42%,transparent)]">
-          Your post shows up here…
-        </span>
-      </p>
-    )
-  }
   const parts = text.split(LINKISH)
   return (
-    <p className="wrap-anywhere mt-[0.8em] mb-[0.7em] leading-[1.38] whitespace-pre-wrap">
+    <p className="wrap-anywhere mt-[0.9em] text-pretty leading-[1.44] tracking-[-0.006em] whitespace-pre-wrap">
       {parts.map((part, i) =>
         IS_LINKISH.test(part) ? (
           <span className="text-[#1D9BF0]" key={i}>
@@ -76,7 +66,7 @@ function VerifiedBadge() {
   // so it always shows the card color through it
   return (
     <svg
-      className="size-[1.12em] shrink-0 fill-[#1D9BF0]"
+      className="size-[1.08em] shrink-0 fill-[#1D9BF0]"
       viewBox="0 0 24 24"
       aria-label="Verified"
     >
@@ -105,52 +95,67 @@ export function TweetCard({
   const handle = authorHandle.trim().replace(/^@/, "") || "handle"
   const gradient =
     AVATAR_GRADIENTS[avatarGradientIndex(name, AVATAR_GRADIENTS.length)]
+  const hasText = text.trim().length > 0
+  const hasMedia = Boolean(mediaUrl)
+  const visibleStats = stats.filter(([, count]) => !isZeroCount(count))
+  const showFooter = (hasText || hasMedia) && (dateLabel || visibleStats.length)
 
   return (
     <article
       data-slot="tweet-card"
-      className="relative w-[calc(var(--w)*1%)] scale-[var(--sc)] rounded-[calc(var(--r)*var(--u))] [background-color:var(--cbg)] px-[1.15em] py-[1.05em] [font-size:calc(var(--fs)*var(--u))] leading-[1.35] [color:var(--ctx)] [box-shadow:var(--shadow)]"
+      className="relative w-[calc(var(--w)*1%)] scale-[var(--sc)] rounded-[calc(var(--r)*var(--u))] [background-color:var(--cbg)] px-[1.22em] py-[1.1em] [font-size:calc(var(--fs)*var(--u))] leading-[1.4] [color:var(--ctx)] [box-shadow:var(--shadow)]"
     >
-      <header className="flex items-center gap-[0.6em]">
+      <header className="flex items-start gap-[0.68em]">
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
             alt=""
-            className="size-[2.4em] shrink-0 rounded-full object-cover"
+            className="size-[2.5em] shrink-0 rounded-full object-cover"
           />
         ) : (
           <div
-            className="grid size-[2.4em] shrink-0 place-items-center rounded-full font-bold text-white"
+            className="grid size-[2.5em] shrink-0 place-items-center rounded-full text-[0.9em] font-bold text-white"
             style={{ background: gradient }}
             aria-hidden
           >
             {name.charAt(0).toUpperCase()}
           </div>
         )}
-        <div className="min-w-0">
-          <div className="flex items-center gap-[0.3em] text-[0.82em] leading-[1.2] font-bold">
+        <div className="min-w-0 flex-1 pt-[0.05em]">
+          <div className="flex items-center gap-[0.28em] text-[0.86em] leading-[1.26] font-bold tracking-[-0.012em]">
             <span className="truncate">{name}</span>
             {verified && <VerifiedBadge />}
           </div>
-          <div className="text-[0.74em] leading-[1.3] [color:color-mix(in_srgb,var(--ctx)_62%,transparent)]">
+          <div className="mt-[0.08em] truncate text-[0.75em] leading-[1.3] [color:var(--ctx-muted)]">
             @{handle}
           </div>
         </div>
       </header>
 
       {replyTo && (
-        <div className="mt-[0.7em] text-[0.74em] [color:color-mix(in_srgb,var(--ctx)_62%,transparent)]">
+        <div className="mt-[0.7em] text-[0.75em] leading-[1.35] [color:var(--ctx-muted)]">
           Replying to{" "}
           <span className="text-[#1D9BF0]">@{replyTo.replace(/^@/, "")}</span>
         </div>
       )}
 
-      <Text text={text} />
+      {hasText ? (
+        <Text text={text} />
+      ) : (
+        !hasMedia && (
+          <p className="mt-[0.9em] leading-[1.44] text-pretty [color:var(--ctx-faint)]">
+            Your post shows up here…
+          </p>
+        )
+      )}
 
       {mediaUrl && (
         <div
-          className="mt-[0.1em] mb-[0.75em] overflow-hidden rounded-[calc(var(--r)*var(--u)*0.6)] [border:1px_solid_color-mix(in_srgb,var(--ctx)_14%,transparent)]"
+          className={
+            "overflow-hidden rounded-[calc(var(--r)*var(--u)*0.55)] [border:1px_solid_var(--ctx-line)] " +
+            (hasText ? "mt-[0.2em]" : "mt-[0.85em]")
+          }
           style={{ aspectRatio: String(mediaAspect ?? 16 / 9) }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -158,42 +163,42 @@ export function TweetCard({
         </div>
       )}
 
-      {dateLabel !== "" && (
-        <div className="text-[0.74em] [color:color-mix(in_srgb,var(--ctx)_62%,transparent)]">
-          {dateLabel}
-        </div>
-      )}
-
-      {stats.length > 0 && (
-        /* One non-wrapping row: a count can never be split from its metric. */
-        <div className="mt-[0.65em] flex items-center gap-x-[1em] overflow-hidden pt-[0.6em] text-[0.74em] whitespace-nowrap tabular-nums [border-top:1px_solid_color-mix(in_srgb,var(--ctx)_14%,transparent)]">
-          {stats.map(([label, count]) => {
-            const MetricIcon = STAT_ICONS[label]
-            return (
-              <span
-                key={label}
-                aria-label={`${count} ${label}`}
-                title={label}
-                className="flex shrink-0 items-center gap-[0.38em]"
-              >
-                {statStyle === "icons" && MetricIcon && (
-                  <MetricIcon
-                    aria-hidden
-                    className="size-[0.95em] shrink-0"
-                  />
-                )}
-                <span className="font-medium [color:color-mix(in_srgb,var(--ctx)_78%,transparent)]">
-                  {count}
-                </span>
-                {statStyle !== "icons" && (
-                  <span className="[color:color-mix(in_srgb,var(--ctx)_62%,transparent)]">
-                    {label}
+      {showFooter && (
+        <footer className="mt-[1.05em] flex flex-col gap-[0.5em]">
+          {dateLabel && (
+            <div className="text-[0.73em] leading-[1.3] [color:var(--ctx-muted)]">
+              {dateLabel}
+            </div>
+          )}
+          {visibleStats.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-[1.1em] gap-y-[0.35em] text-[0.76em] leading-none tabular-nums">
+              {visibleStats.map(([label, count]) => {
+                const MetricIcon = STAT_ICONS[label]
+                return (
+                  <span
+                    key={label}
+                    aria-label={`${count} ${label}`}
+                    title={label}
+                    className="flex shrink-0 items-center gap-[0.34em] whitespace-nowrap"
+                  >
+                    {statStyle === "icons" && MetricIcon && (
+                      <MetricIcon
+                        aria-hidden
+                        className="size-[1.05em] shrink-0 [color:var(--ctx-muted)]"
+                      />
+                    )}
+                    <span className="font-semibold tracking-[0.01em] [color:var(--ctx-soft)]">
+                      {count}
+                    </span>
+                    {statStyle !== "icons" && (
+                      <span className="[color:var(--ctx-muted)]">{label}</span>
+                    )}
                   </span>
-                )}
-              </span>
-            )
-          })}
-        </div>
+                )
+              })}
+            </div>
+          )}
+        </footer>
       )}
     </article>
   )
