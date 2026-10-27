@@ -21,35 +21,113 @@ export const BG_KINDS = [
   ["gradient", "Gradient"],
   ["solid", "Solid"],
   ["mesh", "Mesh"],
-  ["wave", "Wave"],
-  ["image", "Image"],
+  ["halo", "Halo"],
+  ["image", "Photo"],
 ] as const
 export type BgKind = (typeof BG_KINDS)[number][0]
 
-/** Background palettes: [name, base, mid, pop] — one family, consistent
- * lightness/chroma discipline; `mid` carries the hue, `pop` is the highlight
- * used by mesh/wave. */
+/** Background palettes: [name, base, mid, pop, tone].
+ *
+ * Each family is built in OKLCH with a constant hue: `base` is the field,
+ * `mid` carries the hue and deepens the gradient, `pop` is the highlight
+ * used by the gradient bloom and mesh. Light families step ~6 L*; dark
+ * families keep the same hue discipline at a much lower lightness. */
 export const BG_PRESETS = [
-  ["Porcelain", "#F6F1EA", "#E8DAC7", "#F8D9AE"],
-  ["Rose", "#FBE9EC", "#F4C2CE", "#FBE3C8"],
-  ["Fog", "#E4ECF0", "#BED5E0", "#D8E8EC"],
-  ["Sage", "#E6EFDC", "#C2DDB8", "#F0F2CD"],
-  ["Apricot", "#FBE4D4", "#F5B994", "#FCECC6"],
-  ["Lavender", "#EBE4F6", "#CABAE9", "#F6DAEA"],
-  ["Honey", "#F7F0C9", "#ECD987", "#DEEAC9"],
-  ["Slate", "#262A33", "#14171D", "#4B5568"],
+  // light
+  ["Porcelain", "#F8F3EB", "#E8DAC7", "#EDD6AD", "light"],
+  ["Blush", "#FCF0F2", "#F3CCD1", "#FED3C0", "light"],
+  ["Mist", "#EAF3F8", "#BEDDED", "#BDE7EF", "light"],
+  ["Sage", "#F1F5EB", "#D4E0C0", "#EDE8C6", "light"],
+  ["Apricot", "#FDF1EA", "#F3CBB5", "#F6E2C0", "light"],
+  ["Lilac", "#F3F0FB", "#D9CDF1", "#F4D1F0", "light"],
+  ["Butter", "#F9F5E6", "#EADEB2", "#E6F1CC", "light"],
+  ["Clay", "#F3E5DC", "#DEBCAD", "#EFC8AA", "light"],
+  // dark
+  ["Ink", "#181B1F", "#090F16", "#2D415A", "dark"],
+  ["Midnight", "#131A2B", "#050D22", "#374E81", "dark"],
+  ["Forest", "#0F1F14", "#021308", "#325B3B", "dark"],
+  ["Oxblood", "#291414", "#1D0607", "#7A393B", "dark"],
+  ["Plum", "#211526", "#15081A", "#623F71", "dark"],
+  ["Espresso", "#221810", "#180B04", "#68482D", "dark"],
+  ["Graphite", "#1C1D1F", "#0F1113", "#40454D", "dark"],
+  ["Teal", "#0B1E1E", "#001212", "#0B5C5C", "dark"],
+  // flat — solid, saturated colors (base = mid = pop)
+  ["Coral", "#FF6A57", "#FF6A57", "#FF6A57", "flat"],
+  ["Amber", "#F5A623", "#F5A623", "#F5A623", "flat"],
+  ["Sunflower", "#F7C948", "#F7C948", "#F7C948", "flat"],
+  ["Lime", "#9BD14A", "#9BD14A", "#9BD14A", "flat"],
+  ["Emerald", "#12B886", "#12B886", "#12B886", "flat"],
+  ["Teal Flats", "#0FB5AE", "#0FB5AE", "#0FB5AE", "flat"],
+  ["Azure", "#3D7DF6", "#3D7DF6", "#3D7DF6", "flat"],
+  ["Violet", "#7C5CF6", "#7C5CF6", "#7C5CF6", "flat"],
+  ["Magenta", "#E0449A", "#E0449A", "#E0449A", "flat"],
+  ["Slate", "#1E293B", "#1E293B", "#1E293B", "flat"],
 ] as const
 
+/** Patterns are tonal, large-scale motifs — never technical tiles or gray
+ * line work. Grain, vignette and light live here too as the finishing
+ * touches that make a backdrop feel photographed. */
 export const PATTERNS = [
   ["none", "None"],
-  ["dots", "Dots"],
-  ["grid", "Grid"],
-  ["diagonal", "Diagonal"],
-  ["waves", "Waves"],
-  ["cross", "Cross"],
-  ["rings", "Rings"],
+  ["stripes", "Diagonal stripes"],
+  ["maze", "Maze"],
+  ["isometric", "Isometric"],
+  ["chevron", "Chevron"],
+  ["faceted", "Faceted"],
+  ["zigzag", "Zigzag"],
 ] as const
 export type PatternId = (typeof PATTERNS)[number][0]
+
+/** Each pattern's recommended starting point. The SVG sources carry their
+ * own shading, so the layer opacity starts at 100 and only ever reduces. */
+export const PATTERN_DEFAULTS: Record<
+  PatternId,
+  {
+    intensity?: number
+    opacity?: number
+    blur?: number
+    rotation?: number
+    blend?: BlendMode
+  }
+> = {
+  none: {},
+  stripes: {
+    intensity: 44,
+    opacity: 100,
+    blur: 0,
+    rotation: 0,
+    blend: "normal",
+  },
+  maze: { intensity: 44, opacity: 100, blur: 0, rotation: 0, blend: "normal" },
+  isometric: {
+    intensity: 44,
+    opacity: 100,
+    blur: 0,
+    rotation: 0,
+    blend: "normal",
+  },
+  chevron: {
+    intensity: 44,
+    opacity: 100,
+    blur: 0,
+    rotation: 0,
+    blend: "normal",
+  },
+  faceted: {
+    intensity: 44,
+    opacity: 100,
+    blur: 0,
+    rotation: 0,
+    blend: "normal",
+  },
+  zigzag: {
+    intensity: 44,
+    opacity: 100,
+    blur: 0,
+    rotation: 0,
+    blend: "normal",
+  },
+}
 
 export const BLEND_MODES = [
   ["normal", "Normal"],
@@ -76,6 +154,20 @@ export const CARD_BG_COLORS = [
   "#F1ECFF",
   "#E8FBF2",
   "#FFF8E0",
+] as const
+
+/** Pattern ink choices — "auto" (palette-derived) plus a flat set. */
+export const PATTERN_COLORS = [
+  "#0F1419",
+  "#FFFFFF",
+  "#FF6A57",
+  "#F5A623",
+  "#9BD14A",
+  "#12B886",
+  "#0FB5AE",
+  "#3D7DF6",
+  "#7C5CF6",
+  "#E0449A",
 ] as const
 
 export const CARD_TEXT_COLORS = [
@@ -111,12 +203,24 @@ export const SLIDERS = {
   radius: ["Roundness", 0, 48, ""],
   shadow: ["Shadow", 0, 100, ""],
   angle: ["Angle", 0, 360, "°"],
-  intensity: ["Intensity", 0, 100, ""],
+  intensity: ["Density", 0, 100, ""],
   rotation: ["Rotation", -180, 180, "°"],
   opacity: ["Opacity", 0, 100, "%"],
-  blur: ["Blur", 0, 40, ""],
+  blur: ["Softness", 0, 40, ""],
 } as const
 export type SliderKey = keyof typeof SLIDERS
+
+/** Only the controls that actually change the selected finish are shown. */
+export type PatternControl = "intensity" | "opacity" | "blur" | "rotation"
+export const PATTERN_CONTROLS: Record<PatternId, readonly PatternControl[]> = {
+  none: [],
+  stripes: ["intensity", "rotation", "opacity", "blur"],
+  maze: ["intensity", "rotation", "opacity", "blur"],
+  isometric: ["intensity", "rotation", "opacity", "blur"],
+  chevron: ["intensity", "rotation", "opacity", "blur"],
+  faceted: ["intensity", "rotation", "opacity", "blur"],
+  zigzag: ["intensity", "rotation", "opacity", "blur"],
+}
 
 export interface SnapState {
   tab: TabId
@@ -148,6 +252,8 @@ export interface SnapState {
   cardText: string
   /* pattern */
   pattern: PatternId
+  /** pattern ink override; null derives it from the palette */
+  patternColor: string | null
   intensity: number
   rotation: number
   opacity: number
@@ -188,10 +294,11 @@ export const DEFAULT_STATE: SnapState = {
   shadow: 42,
   cardBg: TWEET_THEMES.light.bg,
   cardText: TWEET_THEMES.light.text,
-  pattern: "dots",
-  intensity: 40,
+  pattern: "isometric",
+  patternColor: null,
+  intensity: 44,
   rotation: 0,
-  opacity: 36,
+  opacity: 100,
   blur: 0,
   blend: "normal",
 }

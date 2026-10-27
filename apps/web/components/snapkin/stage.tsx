@@ -7,7 +7,12 @@ import {
   type Ref,
 } from "react"
 import { CANVAS_SIZES, type SnapState } from "@/lib/snapkin/config"
-import { backgroundCss, cardShadowCss, patternCss, withAlpha } from "@/lib/snapkin/derive"
+import {
+  backgroundCss,
+  cardShadowCss,
+  patternCss,
+  withAlpha,
+} from "@/lib/snapkin/derive"
 import { TweetCard } from "./tweet-card"
 
 export const SYSTEM_FONT_STACK =
@@ -70,6 +75,7 @@ export function Stage({
     blur: state.blur,
     blend: state.blend,
     presetIndex: state.preset,
+    color: state.patternColor,
   })
 
   const { fit, innerRef } = useAutoFit()

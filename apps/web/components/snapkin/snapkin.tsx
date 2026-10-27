@@ -11,6 +11,7 @@ import {
   type SnapState,
 } from "@/lib/snapkin/config"
 import { copyPng, exportPng } from "@/lib/snapkin/export"
+import { presetAt } from "@/lib/snapkin/derive"
 import { importTweet } from "@/lib/snapkin/import-tweet"
 import { loadState, persistState } from "@/lib/snapkin/storage"
 import { CanvasPanel, PatternPanel, PostPanel, TweetPanel } from "./panels"
@@ -158,11 +159,15 @@ export function Snapkin() {
 
   const handleShuffle = () => {
     setState((s) => {
-      let next = s.preset
-      while (next === s.preset) {
-        next = Math.floor(Math.random() * BG_PRESETS.length)
-      }
-      return { ...s, preset: next }
+      // Shuffle within the current light/dark family — jumping from a pastel
+      // to a near-black canvas is a mood change, not a variation.
+      const current = presetAt(s.preset)
+      const picks: number[] = []
+      BG_PRESETS.forEach((preset, index) => {
+        if (preset[4] === current[4] && index !== s.preset) picks.push(index)
+      })
+      if (picks.length === 0) return s
+      return { ...s, preset: picks[Math.floor(Math.random() * picks.length)]! }
     })
   }
 

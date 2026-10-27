@@ -7,6 +7,7 @@ import {
   type BgKind,
   type PatternId,
 } from "./config"
+import { PATTERN_SVG } from "./patterns"
 
 const luminance = (hex: string): number => {
   const n = parseInt(hex.slice(1), 16)
@@ -18,7 +19,13 @@ const luminance = (hex: string): number => {
   )
 }
 
-export type BgPreset = readonly [string, string, string, string]
+export type BgPreset = readonly [
+  name: string,
+  base: string,
+  mid: string,
+  pop: string,
+  tone: "light" | "dark" | "flat",
+]
 
 /** Index-safe preset lookup — wraps and never returns undefined. */
 export function presetAt(index: number): BgPreset {
@@ -38,9 +45,6 @@ const mixHex = (a: string, b: string, t: number): string => {
   return `#${to2(ch(16))}${to2(ch(8))}${to2(ch(0))}`
 }
 
-const waveSvg = (fill: string, opacity: number, path: string) =>
-  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path d='${path}' fill='${fill}' fill-opacity='${opacity}'/></svg>`
-
 const svgUrl = (svg: string) =>
   `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
 
@@ -51,6 +55,7 @@ export function backgroundCss(
   image: string | null
 ): CSSProperties {
   const [, base, mid, pop] = presetAt(presetIndex)
+  const light = luminance(base) > 0.55
 
   switch (kind) {
     case "solid":
@@ -58,28 +63,18 @@ export function backgroundCss(
     case "mesh":
       return {
         background: [
-          `radial-gradient(at 18% 12%, ${base}, transparent 55%)`,
-          `radial-gradient(at 88% 22%, ${pop}, transparent 52%)`,
-          `radial-gradient(at 22% 92%, ${mid}, transparent 55%)`,
-          `radial-gradient(at 92% 88%, ${base}, transparent 50%)`,
-          pop,
-        ].join(","),
+          `radial-gradient(65% 55% at 80% 10%, ${withAlpha(pop, 0.9)}, transparent 68%)`,
+          `radial-gradient(70% 60% at 18% 88%, ${withAlpha(mixHex(mid, pop, 0.35), 0.95)}, transparent 72%)`,
+          `linear-gradient(${angle}deg, ${base}, ${mixHex(base, mid, 0.4)})`,
+        ].join(", "),
       }
-    case "wave": {
-      const back = waveSvg(
-        pop,
-        0.55,
-        "M0 66C18 54 38 80 58 68S88 56 100 64V100H0Z"
-      )
-      const front = waveSvg(
-        pop,
-        0.9,
-        "M0 80C22 70 44 94 68 82S92 78 100 82V100H0Z"
-      )
+    case "halo": {
+      // A centered studio glow — the card sits inside the light.
       return {
-        backgroundImage: `${svgUrl(back)}, ${svgUrl(front)}, linear-gradient(180deg, ${base}, ${mid})`,
-        backgroundSize: "100% 100%, 100% 100%, 100% 100%",
-        backgroundRepeat: "no-repeat",
+        background: [
+          `radial-gradient(68% 56% at 50% 44%, ${withAlpha(pop, light ? 0.8 : 0.92)}, transparent 70%)`,
+          `radial-gradient(120% 100% at 50% 44%, ${mixHex(base, mid, 0.45)}, ${base} 76%)`,
+        ].join(", "),
       }
     }
     case "image":
@@ -93,7 +88,12 @@ export function backgroundCss(
         : { background: base }
     case "gradient":
     default:
-      return { background: `linear-gradient(${angle}deg, ${base}, ${mid})` }
+      return {
+        background: [
+          `radial-gradient(120% 90% at 82% 0%, ${withAlpha(pop, light ? 0.5 : 0.55)}, transparent 62%)`,
+          `linear-gradient(${angle}deg, ${base}, ${mid})`,
+        ].join(", "),
+      }
   }
 }
 
@@ -104,75 +104,68 @@ export interface PatternOpts {
   blur: number
   blend: BlendMode
   presetIndex: number
+  /** explicit pattern ink; null/undefined derives it from the palette */
+  color?: string | null
+}
+
+const PATTERN_TILE: Record<string, (cell: number) => [number, number]> = {
+  stripes: (c) => [c * 0.8, c * 0.8],
+  maze: (c) => [c * 3, c * 3],
+  isometric: (c) => [c * 2.6, c * 2.6],
+  chevron: (c) => [c * 2, c * 2],
+  faceted: (c) => [c * 3.6, c * 3],
+  zigzag: (c) => [c * 1.8, c * 1.8],
 }
 
 /**
- * Pattern layer CSS. Patterns are drawn in "density units": the canvas's
- * smaller dimension divided into 420 parts. Size-based density (not
- * width-based) keeps the pattern equally rich on portrait stories and wide
- * LinkedIn plates, preview and export alike. Returns null for "none".
+ * Pattern layer CSS. The geometry comes from the SVG Backgrounds free set
+ * (see patterns.ts); `INK` in each source is swapped for a tonal ink derived
+ * from the palette. Sizes are in "density units": the canvas's smaller
+ * dimension divided into 420 parts, so preview and export match. A custom
+ * `unit` lets a pattern render into a small thumbnail instead.
  */
 export function patternCss(
   pattern: PatternId,
-  { intensity, rotation, opacity, blur, blend, presetIndex }: PatternOpts
+  {
+    intensity,
+    rotation,
+    opacity,
+    blur,
+    blend,
+    presetIndex,
+    color,
+  }: PatternOpts,
+  unit?: (n: number) => string
 ): CSSProperties | null {
   if (pattern === "none") return null
+  const source = PATTERN_SVG[pattern]
+  const tile = PATTERN_TILE[pattern]
+  if (!source || !tile) return null
 
   const [, base, mid] = presetAt(presetIndex)
-  // Ink carries the palette's own hue: the mid tone, pulled toward a deep
-  // plum (light backgrounds) or toward white (dark ones) until it reads
-  // cleanly. Never a foreign neutral dropped over the artwork.
   const light = luminance(base) > 0.55
-  const ink = light
-    ? mixHex(mid, "#171320", 0.42)
-    : mixHex(mid, "#FFFFFF", 0.42)
+  // Explicit color wins; otherwise a tonal ink derived from the palette's mid
+  // tone (its deepest shade on light fields, toward white on dark fields).
+  const ink =
+    color ??
+    (light ? mixHex(mid, "#0C0A10", 0.62) : mixHex(mid, "#FFFFFF", 0.5))
 
-  const u = (n: number) =>
-    `calc(min(100cqw, 100cqh) / 420 * ${Math.round(n * 1000) / 1000})`
-  const cell = 92 - intensity * 0.55 // higher intensity → tighter spacing
-
-  let backgroundImage: string
-  let backgroundSize: string
-
-  if (pattern === "dots") {
-    // Fine dot lattice — airy spacing, small consistent dots
-    backgroundImage = `radial-gradient(circle, ${ink} 0 ${u(1.7)}, transparent ${u(2)})`
-    backgroundSize = `${u(cell)} ${u(cell)}`
-  } else if (pattern === "grid") {
-    // Graph-paper hairlines with an open cell
-    backgroundImage = [
-      `linear-gradient(${ink} 0 ${u(1)}, transparent 0)`,
-      `linear-gradient(90deg, ${ink} 0 ${u(1)}, transparent 0)`,
-    ].join(",")
-    backgroundSize = `${u(cell)} ${u(cell)}`
-  } else if (pattern === "diagonal") {
-    // 45° hairlines — repeating gradient tiles seamlessly at any size
-    backgroundImage = `repeating-linear-gradient(45deg, ${ink} 0 ${u(1)}, transparent 0 ${u(cell)})`
-    backgroundSize = "100% 100%"
-  } else if (pattern === "cross") {
-    // Registration-mark crosses, round caps, centered per cell
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 8.6v6.8M8.6 12h6.8' fill='none' stroke='${ink}' stroke-width='1.6' stroke-linecap='round'/></svg>`
-    backgroundImage = svgUrl(svg)
-    backgroundSize = `${u(cell * 0.72)} ${u(cell * 0.72)}`
-  } else if (pattern === "rings") {
-    // Concentric rings radiating from just above center — launch-graphic energy
-    backgroundImage = `repeating-radial-gradient(circle at 50% 42%, ${ink} 0 ${u(1.1)}, transparent 0 ${u(cell)})`
-    backgroundSize = "100% 100%"
-  } else {
-    // waves — long smooth swells, not squiggles
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 36'><path d='M0 18C20 6 40 6 60 18S100 30 120 18' fill='none' stroke='${ink}' stroke-width='1.6'/></svg>`
-    backgroundImage = svgUrl(svg)
-    backgroundSize = `${u(cell * 1.6)} ${u(cell * 0.48)}`
-  }
+  const u =
+    unit ??
+    ((n: number) =>
+      `calc(min(100cqw, 100cqh) / 420 * ${Math.round(n * 1000) / 1000})`)
+  const cell = 88 - intensity * 0.6
+  const [tw, th] = tile(cell)
 
   return {
-    backgroundImage,
-    backgroundSize,
+    backgroundImage: svgUrl(source.replaceAll("INK", ink)),
+    backgroundSize: `${u(tw)} ${u(th)}`,
     backgroundPosition: "0 0",
+    backgroundRepeat: "repeat",
     opacity: opacity / 100,
-    filter: blur > 0 ? `blur(${u(blur * 0.25)})` : "blur(0px)",
+    filter: blur > 0 ? `blur(${u(blur * 0.35)})` : undefined,
     mixBlendMode: blend,
-    transform: `rotate(${rotation}deg)`,
+    transform: rotation === 0 ? undefined : `rotate(${rotation}deg)`,
   }
 }
 

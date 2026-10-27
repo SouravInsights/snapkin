@@ -11,7 +11,9 @@ import {
   CARD_TEXT_COLORS,
   DEFAULT_STATE,
   EXAMPLE_TWEETS,
-  PATTERNS,
+  PATTERN_COLORS,
+  PATTERN_CONTROLS,
+  PATTERN_DEFAULTS,
   TWEET_THEMES,
   type CanvasSizeId,
   type SnapState,
@@ -22,6 +24,8 @@ import { cn } from "@workspace/ui/lib/utils"
 import {
   ChipRow,
   GroupLabel,
+  PatternGrid,
+  PresetGrid,
   SliderRow,
   SwatchRow,
   useFinePointer,
@@ -328,7 +332,7 @@ export function CanvasPanel({
                 update({ bg: kind })
               }}
               className={cn(
-                "group flex touch-manipulation flex-col items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors",
+                "group flex touch-manipulation flex-col items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                 "aria-pressed:text-foreground"
               )}
             >
@@ -404,22 +408,19 @@ export function CanvasPanel({
           </button>
         }
       >
-        Presets
+        Palette
       </GroupLabel>
-      <SwatchRow
-        label="Background presets"
-        colors={BG_PRESETS.map((p) => p[0])}
+      <PresetGrid
+        presets={BG_PRESETS}
         current={presetAt(state.preset)[0]}
-        preview={(name) => {
-          const preset = BG_PRESETS.find((p) => p[0] === name)
-          return `linear-gradient(135deg, ${preset?.[1]}, ${preset?.[2]})`
-        }}
+        kind={state.bg}
+        angle={state.angle}
         onSelect={(name) =>
           update({ preset: BG_PRESETS.findIndex((p) => p[0] === name) })
         }
       />
 
-      {state.bg === "gradient" && (
+      {state.bg === "gradient" || state.bg === "mesh" ? (
         <div className="mt-1">
           <SliderRow
             id="angle"
@@ -428,7 +429,7 @@ export function CanvasPanel({
             onChange={(angle) => update({ angle })}
           />
         </div>
-      )}
+      ) : null}
 
       <p className="mt-4 text-xs leading-4 text-pretty text-muted-foreground">
         Exports at{" "}
@@ -444,33 +445,84 @@ export function CanvasPanel({
 /* --------------------------------------------------------------- pattern */
 
 export function PatternPanel({ state, update }: PanelProps) {
+  const defaults = PATTERN_DEFAULTS[state.pattern]
   return (
     <div
       data-slot="panel"
       className="[&>*]:transition-opacity group-data-[sliding]/sheet:[&>:not([data-sliding-row])]:opacity-40"
     >
-      <div className="mt-1">
-        <ChipRow
-          label="Pattern"
-          items={PATTERNS}
+      <div className="mt-1.5">
+        <PatternGrid
+          presetIndex={state.preset}
           current={state.pattern}
-          onSelect={(pattern) => update({ pattern })}
+          color={state.patternColor}
+          onSelect={(pattern) =>
+            update({ pattern, ...PATTERN_DEFAULTS[pattern] })
+          }
         />
       </div>
 
       {state.pattern !== "none" && (
         <>
-          {(["intensity", "rotation", "opacity", "blur"] as const).map(
-            (key) => (
-              <SliderRow
-                key={key}
-                id={key}
-                value={state[key]}
-                defaultValue={DEFAULT_STATE[key]}
-                onChange={(value) => update({ [key]: value })}
+          <GroupLabel>Color</GroupLabel>
+          <div className="-mx-1 flex flex-wrap items-center gap-2 px-1">
+            <button
+              type="button"
+              aria-pressed={state.patternColor === null}
+              onClick={() => update({ patternColor: null })}
+              className={cn(
+                "h-7 rounded-full px-3 text-[12px] font-medium transition-colors",
+                state.patternColor === null
+                  ? "bg-secondary text-foreground shadow-[inset_0_0_0_1.5px_var(--foreground)]"
+                  : "bg-card text-muted-foreground shadow-[inset_0_0_0_1px_var(--input)]"
+              )}
+            >
+              Auto
+            </button>
+            {PATTERN_COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={color}
+                aria-pressed={state.patternColor === color}
+                style={{ background: color }}
+                onClick={() => update({ patternColor: color })}
+                className={cn(
+                  "size-7 rounded-full shadow-[inset_0_0_0_1px_var(--input)] transition-transform duration-150 active:scale-90",
+                  state.patternColor === color &&
+                    "shadow-[inset_0_0_0_1px_var(--input),0_0_0_2px_var(--card),0_0_0_4px_var(--foreground)]"
+                )}
               />
-            )
-          )}
+            ))}
+            <label
+              title="Custom color"
+              className="relative size-7 cursor-pointer overflow-hidden rounded-full shadow-[inset_0_0_0_1px_var(--input)]"
+              style={{
+                background:
+                  "conic-gradient(#f66,#fc6,#6f6,#6ff,#66f,#f6f,#f66)",
+              }}
+            >
+              <input
+                type="color"
+                aria-label="Custom pattern color"
+                value={state.patternColor ?? "#000000"}
+                onChange={(event) =>
+                  update({ patternColor: event.target.value })
+                }
+                className="absolute inset-0 size-full cursor-pointer opacity-0"
+              />
+            </label>
+          </div>
+
+          {PATTERN_CONTROLS[state.pattern].map((key) => (
+            <SliderRow
+              key={key}
+              id={key}
+              value={state[key]}
+              defaultValue={defaults[key] ?? DEFAULT_STATE[key]}
+              onChange={(value) => update({ [key]: value })}
+            />
+          ))}
           <GroupLabel>Blend</GroupLabel>
           <ChipRow
             label="Blend mode"
@@ -481,12 +533,18 @@ export function PatternPanel({ state, update }: PanelProps) {
         </>
       )}
 
-      {state.pattern === "none" && (
-        <p className="mt-4 text-xs leading-4 text-pretty text-muted-foreground">
-          Patterns sit between the background and the post — subtle texture, big
-          difference.
-        </p>
-      )}
+      <p className="mt-4 text-xs leading-4 text-pretty text-muted-foreground">
+        Patterns adapted from{" "}
+        <a
+          href="https://www.svgbackgrounds.com/set/free-svg-backgrounds-and-patterns/"
+          target="_blank"
+          rel="noreferrer"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          SVG Backgrounds
+        </a>{" "}
+        by Matt Visiwig.
+      </p>
     </div>
   )
 }
