@@ -33,11 +33,41 @@ const renderOptions = (size: CanvasSizeId) => {
   }
 }
 
+/**
+ * html-to-image rewrites every `px` font-size as `Math.floor(px) - 0.1` to
+ * dodge a Chrome sub-pixel bug. That shrinks the exported text ~1px while the
+ * line boxes stay put, which reads as an extra gap between the post and the
+ * stats. Returning the size wrapped in `calc()` keeps the exact value and
+ * sidesteps that branch entirely, so the export matches the preview.
+ */
+async function withExactFontSizes<T>(render: () => Promise<T>): Promise<T> {
+  const proto = CSSStyleDeclaration.prototype
+  const original = proto.getPropertyValue
+  proto.getPropertyValue = function (property: string) {
+    const value = original.call(this, property)
+    if (
+      property === "font-size" &&
+      typeof value === "string" &&
+      value.endsWith("px")
+    ) {
+      return `calc(${value})`
+    }
+    return value
+  }
+  try {
+    return await render()
+  } finally {
+    proto.getPropertyValue = original
+  }
+}
+
 export async function exportPng(
   node: HTMLElement,
   size: CanvasSizeId
 ): Promise<void> {
-  const dataUrl = await toPng(node, renderOptions(size))
+  const dataUrl = await withExactFontSizes(() =>
+    toPng(node, renderOptions(size))
+  )
   const [w, h] = CANVAS_SIZES[size].out
   const link = document.createElement("a")
   link.download = `snapkin-${size}-${w}x${h}.png`
@@ -56,7 +86,7 @@ export async function copyPng(
   ) {
     throw new Error("Clipboard images are not supported in this browser")
   }
-  const blob = await toBlob(node, renderOptions(size))
+  const blob = await withExactFontSizes(() => toBlob(node, renderOptions(size)))
   if (!blob) throw new Error("Could not render the image")
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })])
 }
